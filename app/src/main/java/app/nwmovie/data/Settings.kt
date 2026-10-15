@@ -1,0 +1,86 @@
+package app.nwmovie.data
+
+import android.content.Context
+import androidx.datastore.preferences.core.*
+import androidx.datastore.preferences.preferencesDataStore
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+
+private val Context.dataStore by preferencesDataStore("nw_settings")
+
+data class Prefs(
+    // playback
+    val speed: Float = 1f, val audioLang: String = "", val subLang: String = "", val subSize: Float = 20f,
+    val subBg: Boolean = true, val subColor: Int = 0xFFFFFFFF.toInt(), val subDelayMs: Int = 0, val audioDelayMs: Int = 0,
+    val aspect: String = "fit", val rotation: String = "auto",
+    val gestures: Boolean = true, val brightnessGesture: Boolean = true, val volumeGesture: Boolean = true,
+    val seekGesture: Boolean = true, val rememberBrightness: Boolean = false, val doubleTapSec: Int = 10,
+    val autoNext: Boolean = true, val resume: Boolean = true, val hwAccel: Boolean = true,
+    val autoQuality: Boolean = true, val maxQuality: Int = 0, val bgPlayback: Boolean = true,
+    // network
+    val wifiOnlyStream: Boolean = false, val wifiOnlyDownload: Boolean = true, val mobileData: Boolean = true,
+    val bandwidthSaver: Boolean = false, val bgDownloads: Boolean = true,
+    // privacy
+    val appLock: Boolean = false, val hideNotif: Boolean = false, val blockShots: Boolean = false,
+    // cache
+    val posterCacheMb: Int = 300, val tempCacheMb: Int = 2048, val autoClean: Boolean = true, val lastOpen: Long = 0L,
+    // appearance
+    val theme: String = "dark", val accent: Int = 0, val fontScale: Float = 1f, val showTitles: Boolean = true,
+    val fullscreen: Boolean = true,
+    val savedBrightness: Float = -1f
+)
+
+object K {
+    val speed = floatPreferencesKey("speed"); val audioLang = stringPreferencesKey("audioLang")
+    val subLang = stringPreferencesKey("subLang"); val subSize = floatPreferencesKey("subSize")
+    val subBg = booleanPreferencesKey("subBg"); val subColor = intPreferencesKey("subColor")
+    val subDelayMs = intPreferencesKey("subDelayMs"); val audioDelayMs = intPreferencesKey("audioDelayMs")
+    val aspect = stringPreferencesKey("aspect"); val rotation = stringPreferencesKey("rotation")
+    val gestures = booleanPreferencesKey("gestures"); val brightnessGesture = booleanPreferencesKey("brightnessGesture")
+    val volumeGesture = booleanPreferencesKey("volumeGesture"); val seekGesture = booleanPreferencesKey("seekGesture")
+    val rememberBrightness = booleanPreferencesKey("rememberBrightness"); val doubleTapSec = intPreferencesKey("doubleTapSec")
+    val autoNext = booleanPreferencesKey("autoNext"); val resume = booleanPreferencesKey("resume")
+    val hwAccel = booleanPreferencesKey("hwAccel"); val autoQuality = booleanPreferencesKey("autoQuality")
+    val maxQuality = intPreferencesKey("maxQuality"); val bgPlayback = booleanPreferencesKey("bgPlayback")
+    val wifiOnlyStream = booleanPreferencesKey("wifiOnlyStream"); val wifiOnlyDownload = booleanPreferencesKey("wifiOnlyDownload")
+    val mobileData = booleanPreferencesKey("mobileData"); val bandwidthSaver = booleanPreferencesKey("bandwidthSaver")
+    val bgDownloads = booleanPreferencesKey("bgDownloads")
+    val appLock = booleanPreferencesKey("appLock"); val hideNotif = booleanPreferencesKey("hideNotif")
+    val blockShots = booleanPreferencesKey("blockShots")
+    val posterCacheMb = intPreferencesKey("posterCacheMb"); val tempCacheMb = intPreferencesKey("tempCacheMb")
+    val autoClean = booleanPreferencesKey("autoClean"); val lastOpen = longPreferencesKey("lastOpen")
+    val theme = stringPreferencesKey("theme"); val accent = intPreferencesKey("accent")
+    val fontScale = floatPreferencesKey("fontScale"); val showTitles = booleanPreferencesKey("showTitles")
+    val fullscreen = booleanPreferencesKey("fullscreen"); val savedBrightness = floatPreferencesKey("savedBrightness")
+}
+
+class SettingsStore(ctx: Context) {
+    private val ds = ctx.dataStore
+
+    val flow: Flow<Prefs> = ds.data.map { p ->
+        val d = Prefs()
+        Prefs(
+            speed = p[K.speed] ?: d.speed, audioLang = p[K.audioLang] ?: d.audioLang, subLang = p[K.subLang] ?: d.subLang,
+            subSize = p[K.subSize] ?: d.subSize, subBg = p[K.subBg] ?: d.subBg, subColor = p[K.subColor] ?: d.subColor,
+            subDelayMs = p[K.subDelayMs] ?: d.subDelayMs, audioDelayMs = p[K.audioDelayMs] ?: d.audioDelayMs,
+            aspect = p[K.aspect] ?: d.aspect, rotation = p[K.rotation] ?: d.rotation,
+            gestures = p[K.gestures] ?: d.gestures, brightnessGesture = p[K.brightnessGesture] ?: d.brightnessGesture,
+            volumeGesture = p[K.volumeGesture] ?: d.volumeGesture, seekGesture = p[K.seekGesture] ?: d.seekGesture,
+            rememberBrightness = p[K.rememberBrightness] ?: d.rememberBrightness, doubleTapSec = p[K.doubleTapSec] ?: d.doubleTapSec,
+            autoNext = p[K.autoNext] ?: d.autoNext, resume = p[K.resume] ?: d.resume, hwAccel = p[K.hwAccel] ?: d.hwAccel,
+            autoQuality = p[K.autoQuality] ?: d.autoQuality, maxQuality = p[K.maxQuality] ?: d.maxQuality,
+            bgPlayback = p[K.bgPlayback] ?: d.bgPlayback,
+            wifiOnlyStream = p[K.wifiOnlyStream] ?: d.wifiOnlyStream, wifiOnlyDownload = p[K.wifiOnlyDownload] ?: d.wifiOnlyDownload,
+            mobileData = p[K.mobileData] ?: d.mobileData, bandwidthSaver = p[K.bandwidthSaver] ?: d.bandwidthSaver,
+            bgDownloads = p[K.bgDownloads] ?: d.bgDownloads,
+            appLock = p[K.appLock] ?: d.appLock, hideNotif = p[K.hideNotif] ?: d.hideNotif, blockShots = p[K.blockShots] ?: d.blockShots,
+            posterCacheMb = p[K.posterCacheMb] ?: d.posterCacheMb, tempCacheMb = p[K.tempCacheMb] ?: d.tempCacheMb,
+            autoClean = p[K.autoClean] ?: d.autoClean, lastOpen = p[K.lastOpen] ?: d.lastOpen,
+            theme = p[K.theme] ?: d.theme, accent = p[K.accent] ?: d.accent, fontScale = p[K.fontScale] ?: d.fontScale,
+            showTitles = p[K.showTitles] ?: d.showTitles, fullscreen = p[K.fullscreen] ?: d.fullscreen,
+            savedBrightness = p[K.savedBrightness] ?: d.savedBrightness
+        )
+    }
+
+    suspend fun <T> set(key: Preferences.Key<T>, value: T) { ds.edit { it[key] = value } }
+}
