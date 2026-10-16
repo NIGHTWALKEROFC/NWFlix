@@ -4,6 +4,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.net.Uri
 import androidx.media3.common.*
+import androidx.media3.common.audio.AudioProcessor
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
@@ -44,7 +45,7 @@ object PlayerManager {
 
         val renderers = object : DefaultRenderersFactory(ctx) {
             override fun buildAudioSink(context: Context, enableFloatOutput: Boolean, enableAudioTrackPlaybackParams: Boolean): AudioSink? =
-                DefaultAudioSink.Builder(context).setAudioProcessors(arrayOf(audioDelay)).build()
+                DefaultAudioSink.Builder(context).setAudioProcessors(arrayOf<AudioProcessor>(audioDelay)).build()
         }.setEnableDecoderFallback(true)
             .setMediaCodecSelector { mime, secure, tunneling ->
                 val list = MediaCodecSelector.DEFAULT.getDecoderInfos(mime, secure, tunneling)
