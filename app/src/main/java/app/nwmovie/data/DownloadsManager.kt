@@ -73,6 +73,8 @@ class DownloadsManager(private val ctx: Context, private val scope: CoroutineSco
         })
     }
 
+    fun hasActive(): Boolean = byFile.isNotEmpty()
+
     suspend fun localPath(id: String): String? {
         val d = dao.get(id) ?: return null
         return if (d.state == DownloadItem.DONE && d.path.isNotEmpty() && File(d.path).exists()) d.path else null
@@ -106,6 +108,7 @@ class DownloadsManager(private val ctx: Context, private val scope: CoroutineSco
     suspend fun pause(id: String) {
         val d = dao.get(id) ?: return
         tg.cancelDownload(d.fileId)
+        byFile.remove(d.fileId)
         dao.setState(id, DownloadItem.PAUSED)
     }
 
