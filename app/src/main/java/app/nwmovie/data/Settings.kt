@@ -14,12 +14,12 @@ data class Prefs(
     val subBg: Boolean = true, val subColor: Int = 0xFFFFFFFF.toInt(), val subDelayMs: Int = 0, val audioDelayMs: Int = 0,
     val aspect: String = "fit", val rotation: String = "auto",
     val gestures: Boolean = true, val brightnessGesture: Boolean = true, val volumeGesture: Boolean = true,
-    val seekGesture: Boolean = true, val rememberBrightness: Boolean = false, val doubleTapSec: Int = 10,
+    val seekGesture: Boolean = true, val rememberBrightness: Boolean = true, val rememberVolume: Boolean = true, val doubleTapSec: Int = 10,
     val autoNext: Boolean = true, val resume: Boolean = true, val hwAccel: Boolean = true,
-    val autoQuality: Boolean = true, val maxQuality: Int = 0, val bgPlayback: Boolean = true,
+    val autoQuality: Boolean = true, val maxQuality: Int = 0, val bgPlayback: Boolean = false,
     // network
     val wifiOnlyStream: Boolean = false, val wifiOnlyDownload: Boolean = true, val mobileData: Boolean = true,
-    val bandwidthSaver: Boolean = false, val bgDownloads: Boolean = true,
+    val bandwidthSaver: Boolean = false, val bgDownloads: Boolean = false,
     // privacy
     val appLock: Boolean = false, val hideNotif: Boolean = false, val blockShots: Boolean = false,
     // cache
@@ -27,7 +27,8 @@ data class Prefs(
     // appearance
     val theme: String = "dark", val accent: Int = 0, val fontScale: Float = 1f, val showTitles: Boolean = true,
     val fullscreen: Boolean = true,
-    val savedBrightness: Float = -1f
+    val savedBrightness: Float = -1f, val savedVolume: Int = -1,
+    val capBackfill: Boolean = false
 )
 
 object K {
@@ -38,7 +39,8 @@ object K {
     val aspect = stringPreferencesKey("aspect"); val rotation = stringPreferencesKey("rotation")
     val gestures = booleanPreferencesKey("gestures"); val brightnessGesture = booleanPreferencesKey("brightnessGesture")
     val volumeGesture = booleanPreferencesKey("volumeGesture"); val seekGesture = booleanPreferencesKey("seekGesture")
-    val rememberBrightness = booleanPreferencesKey("rememberBrightness"); val doubleTapSec = intPreferencesKey("doubleTapSec")
+    val rememberBrightness = booleanPreferencesKey("rememberBrightness"); val rememberVolume = booleanPreferencesKey("rememberVolume")
+    val savedVolume = intPreferencesKey("savedVolume"); val doubleTapSec = intPreferencesKey("doubleTapSec")
     val autoNext = booleanPreferencesKey("autoNext"); val resume = booleanPreferencesKey("resume")
     val hwAccel = booleanPreferencesKey("hwAccel"); val autoQuality = booleanPreferencesKey("autoQuality")
     val maxQuality = intPreferencesKey("maxQuality"); val bgPlayback = booleanPreferencesKey("bgPlayback")
@@ -52,6 +54,7 @@ object K {
     val theme = stringPreferencesKey("theme"); val accent = intPreferencesKey("accent")
     val fontScale = floatPreferencesKey("fontScale"); val showTitles = booleanPreferencesKey("showTitles")
     val fullscreen = booleanPreferencesKey("fullscreen"); val savedBrightness = floatPreferencesKey("savedBrightness")
+    val capBackfill = booleanPreferencesKey("capBackfill")
 }
 
 class SettingsStore(ctx: Context) {
@@ -66,7 +69,7 @@ class SettingsStore(ctx: Context) {
             aspect = p[K.aspect] ?: d.aspect, rotation = p[K.rotation] ?: d.rotation,
             gestures = p[K.gestures] ?: d.gestures, brightnessGesture = p[K.brightnessGesture] ?: d.brightnessGesture,
             volumeGesture = p[K.volumeGesture] ?: d.volumeGesture, seekGesture = p[K.seekGesture] ?: d.seekGesture,
-            rememberBrightness = p[K.rememberBrightness] ?: d.rememberBrightness, doubleTapSec = p[K.doubleTapSec] ?: d.doubleTapSec,
+            rememberBrightness = p[K.rememberBrightness] ?: d.rememberBrightness, rememberVolume = p[K.rememberVolume] ?: d.rememberVolume, doubleTapSec = p[K.doubleTapSec] ?: d.doubleTapSec,
             autoNext = p[K.autoNext] ?: d.autoNext, resume = p[K.resume] ?: d.resume, hwAccel = p[K.hwAccel] ?: d.hwAccel,
             autoQuality = p[K.autoQuality] ?: d.autoQuality, maxQuality = p[K.maxQuality] ?: d.maxQuality,
             bgPlayback = p[K.bgPlayback] ?: d.bgPlayback,
@@ -78,7 +81,7 @@ class SettingsStore(ctx: Context) {
             autoClean = p[K.autoClean] ?: d.autoClean, lastOpen = p[K.lastOpen] ?: d.lastOpen,
             theme = p[K.theme] ?: d.theme, accent = p[K.accent] ?: d.accent, fontScale = p[K.fontScale] ?: d.fontScale,
             showTitles = p[K.showTitles] ?: d.showTitles, fullscreen = p[K.fullscreen] ?: d.fullscreen,
-            savedBrightness = p[K.savedBrightness] ?: d.savedBrightness
+            savedBrightness = p[K.savedBrightness] ?: d.savedBrightness, savedVolume = p[K.savedVolume] ?: d.savedVolume, capBackfill = p[K.capBackfill] ?: d.capBackfill
         )
     }
 
