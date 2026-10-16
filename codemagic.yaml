@@ -1,29 +1,23 @@
 # NWMovie - Codemagic build file (same style as your NWisp Chat setup).
 #
-# * No "instance_type" line on purpose: your free Codemagic plan only allows the default machine
-#   (asking for linux_x2 gives "instance type is not available with the current billing plan").
-# * Signing uses the keystore you already uploaded in Codemagic (reference name: nightwalker_keystore).
-#   If you want a different keystore for this app, change that one name below.
-# * One workflow builds every CPU type in a single run: arm64-v8a, armeabi-v7a, x86_64
-#   plus one universal APK (all files appear under "Artifacts").
-# * Start it with "Start new build" in Codemagic - it always fetches the newest code from GitHub.
-#   (To build automatically on every push, add under the workflow:
-#      triggering:
-#        events: [push]
-#        branch_patterns:
-#          - pattern: main
-#            include: true )
+# HOW THE KEYS REACH THE APP (same idea as NWisp):
+#   Codemagic stores the values -> they become environment variables during the build ->
+#   app/build.gradle.kts reads them and compiles them into the app. Nothing is typed inside the app
+#   and nothing secret sits in GitHub.
+#   NWisp does the same with "--dart-define=..."; this native Android app does it with BuildConfig.
 #
-# OPTIONAL build-time keys (Telegram api_id / api_hash, TMDB key):
-#   You do not need them here. If they are not set, NWMovie asks for them on its first screen and keeps
-#   them encrypted on the phone, so nothing secret ever sits in the repository.
-#   (Codemagic can't read GitHub Secrets. To bake keys into the APK, remove the "#" below and use
-#   your real values only if the repository is PRIVATE, or add them in Codemagic > app > Environment variables.)
+# ONE-TIME SETUP IN CODEMAGIC (before the first build):
+#   Codemagic -> Teams -> your team -> Global variables and secrets -> Add group
+#   Group name: nwmovie_secrets   with these 3 variables (tick "Secure"):
+#       TG_API_ID      your Telegram api_id (numbers only)
+#       TG_API_HASH    your Telegram api_hash
+#       TMDB_API_KEY   your TMDB v3 API key
+#   The "groups:" line below connects the group to this workflow.
 #
-#      vars:
-#        TG_API_ID: "1234567"
-#        TG_API_HASH: "your_api_hash"
-#        TMDB_API_KEY: "your_tmdb_v3_key"
+# Signing uses the keystore already uploaded in Codemagic (reference name: nightwalker_keystore).
+# No "instance_type" on purpose (free plan = default machine).
+# One workflow builds every CPU type: arm64-v8a, armeabi-v7a, x86_64 + one universal APK.
+# Start it with "Start new build" - Codemagic always fetches the newest code from GitHub.
 
 workflows:
   nwmovie-android:
@@ -31,12 +25,18 @@ workflows:
     max_build_duration: 60
     environment:
       java: 17
+      groups:
+        - nwmovie_secrets
       android_signing:
         - nightwalker_keystore
     scripts:
       - name: Build release APKs
         script: |
           echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
+          if [ -z "$TG_API_ID" ] || [ -z "$TG_API_HASH" ] || [ -z "$TMDB_API_KEY" ]; then
+            echo "ERROR: TG_API_ID, TG_API_HASH and TMDB_API_KEY must be set in the Codemagic variable group nwmovie_secrets."
+            exit 1
+          fi
           if [ -f gradle/wrapper/gradle-wrapper.jar ] && [ -f gradlew ]; then
             chmod +x ./gradlew
             GRADLE=./gradlew
