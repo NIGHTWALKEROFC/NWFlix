@@ -162,15 +162,11 @@ fun SettingsPages(vm: MainViewModel, name: String, onBack: () -> Unit) {
     when (name) {
         "account" -> Page("Account & Security", onBack) {
             val user by vm.userName.collectAsState()
-            var tmdb by remember { mutableStateOf(Secrets.tmdbKey) }
             var logout by remember { mutableStateOf(false) }
             Group("Telegram")
             ActionRow(user.ifBlank { "Telegram user" }, "Connected. Your session is encrypted on this phone.", Icons.Default.Person) {}
-            ActionRow("Rescan chats (new movies)", "Looks for newly added movies", Icons.Default.Refresh) { vm.rescan(false); vm.say("Scanning…") }
-            ActionRow("Full rescan & retry unmatched", "Slower: checks every chat deeply and re-matches titles", Icons.Default.Search) { vm.rescan(true); vm.say("Full scan started") }
-            Group("Movie details (TMDB)")
-            OutlinedTextField(tmdb, { tmdb = it }, label = { Text("TMDB API key (v3)") }, singleLine = true, modifier = Modifier.fillMaxWidth().padding(16.dp, 4.dp))
-            Button(onClick = { vm.saveTmdbKey(tmdb) }, modifier = Modifier.padding(horizontal = 16.dp), enabled = tmdb.isNotBlank()) { Text("Save key") }
+            ActionRow("Scan for new movies", "Also runs automatically every time you open the app", Icons.Default.Refresh) { vm.rescan(false); vm.say("Scanning…") }
+            ActionRow("Full rescan", "Slower: checks every chat deeply and retries unmatched movies", Icons.Default.Search) { vm.rescan(true); vm.say("Full scan started") }
             Group("Danger zone")
             ActionRow("Log out & clear session", "Signs out of Telegram and deletes everything stored by NWMovie", Icons.Default.Logout, danger = true) { logout = true }
             if (logout) Confirm("Log out?", "This logs you out of Telegram on this phone and deletes the local index, caches and downloaded movies.", "Log out",
@@ -223,7 +219,7 @@ fun SettingsPages(vm: MainViewModel, name: String, onBack: () -> Unit) {
             ChoiceRow("Default playback speed", p.speed, listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 1.75f, 2f).map { it to "${it}x" }) { vm.set(K.speed, it) }
             SwitchRow("Resume playback", "Continue where you stopped", p.resume) { vm.set(K.resume, it) }
             SwitchRow("Auto-play next", "After a movie ends, play the next unwatched title in My List", p.autoNext) { vm.set(K.autoNext, it) }
-            SwitchRow("Background playback", "Keep playing (audio) when you leave the app", p.bgPlayback) { vm.set(K.bgPlayback, it) }
+            SwitchRow("Background playback", "Keep playing when you leave the app (off = the movie pauses)", p.bgPlayback) { vm.set(K.bgPlayback, it) }
             Group("Audio & subtitles")
             ChoiceRow("Preferred audio language", p.audioLang, langs) { vm.set(K.audioLang, it) }
             ChoiceRow("Preferred subtitle language", p.subLang, langs.map { if (it.first == "") "" to "Off" else it }) { vm.set(K.subLang, it) }
@@ -241,20 +237,28 @@ fun SettingsPages(vm: MainViewModel, name: String, onBack: () -> Unit) {
             Group("Gestures")
             SwitchRow("Enable gestures", "Swipe and double-tap on the video", p.gestures) { vm.set(K.gestures, it) }
             SwitchRow("Brightness (swipe left side)", null, p.brightnessGesture, p.gestures) { vm.set(K.brightnessGesture, it) }
-            SwitchRow("Volume (swipe right side)", null, p.volumeGesture, p.gestures) { vm.set(K.volumeGesture, it) }
+            SwitchRow("Volume (swipe right side)", "Goes up to 200 % like VLC. Above 100 % the sound is boosted and may distort.", p.volumeGesture, p.gestures) { vm.set(K.volumeGesture, it) }
             SwitchRow("Seek (swipe sideways)", null, p.seekGesture, p.gestures) { vm.set(K.seekGesture, it) }
-            SwitchRow("Remember brightness", "Keep the brightness you set in the player", p.rememberBrightness) { vm.set(K.rememberBrightness, it) }
+            SwitchRow("Remember brightness", "Start the next movie with the brightness you chose", p.rememberBrightness) { vm.set(K.rememberBrightness, it) }
+            SwitchRow("Remember volume", "Start the next movie with the volume you chose (up to 200 %)", p.rememberVolume) { vm.set(K.rememberVolume, it) }
             ChoiceRow("Double-tap seek", p.doubleTapSec, listOf(5, 10, 15, 30).map { it to "$it seconds" }) { vm.set(K.doubleTapSec, it) }
         }
 
         "network" -> Page("Network & Download", onBack) {
+            var askSaver by remember { mutableStateOf(false) }
+            Group("Data saver")
+            SwitchRow("Data saver", "Uses less data but lowers quality: smaller pictures, smaller streaming read-ahead, and the smallest file is played when a movie has several versions.", p.bandwidthSaver) { on ->
+                if (on) askSaver = true else vm.set(K.bandwidthSaver, false)
+            }
+            if (askSaver) Confirm("Turn on Data saver?",
+                "This reduces data usage but lowers quality. Pictures get smaller, the smallest file is chosen when a movie has several versions, and a slow connection may buffer more often.",
+                "Turn on", { vm.set(K.bandwidthSaver, true) }, { askSaver = false })
             Group("Mobile data")
             SwitchRow("Allow mobile data", "Off = NWMovie only uses Wi-Fi for everything", p.mobileData) { vm.set(K.mobileData, it) }
             SwitchRow("Wi-Fi only for streaming", null, p.wifiOnlyStream) { vm.set(K.wifiOnlyStream, it) }
             SwitchRow("Wi-Fi only for downloads", null, p.wifiOnlyDownload) { vm.set(K.wifiOnlyDownload, it) }
-            Group("Data saving")
-            SwitchRow("Bandwidth saver", "Smaller posters and less pre-loading while streaming", p.bandwidthSaver) { vm.set(K.bandwidthSaver, it) }
-            SwitchRow("Downloads in background", "Off = downloads pause when you leave the app", p.bgDownloads) { vm.set(K.bgDownloads, it) }
+            Group("Background")
+            SwitchRow("Downloads in background", "Off = downloads pause when you leave the app and continue when you return", p.bgDownloads) { vm.set(K.bgDownloads, it) }
             SwitchRow("Automatic quality", null, p.autoQuality) { vm.set(K.autoQuality, it) }
             ChoiceRow("Maximum streaming quality", p.maxQuality, listOf(0 to "No limit", 1080 to "1080p", 720 to "720p", 480 to "480p")) { vm.set(K.maxQuality, it) }
         }
