@@ -55,11 +55,12 @@ class MainActivity : FragmentActivity() {
     override fun onStart() {
         super.onStart()
         ServiceLocator.scope.launch { ServiceLocator.settings.set(K.lastOpen, System.currentTimeMillis()) }
+        vm.scanIfStale()   // auto-scan for new movies every time the app is opened
     }
 
     override fun onStop() {
         super.onStop()
-        if (!isChangingConfigurations) AppState.locked.value = true
+        if (!isChangingConfigurations) { AppState.locked.value = true; vm.stopScan() }
     }
 
     private fun authenticate() {
