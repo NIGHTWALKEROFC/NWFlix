@@ -96,7 +96,11 @@ fun NWRoot(vm: MainViewModel) {
             composable("home") {
                 HomeScreen(vm, onOpen = { nav.navigate("detail/$it") },
                     onSearch = { vm.searchOpen.value = true; nav.navigate("explore") },
-                    onSettings = { nav.navigate("settings") })
+                    onSettings = { nav.navigate("settings") },
+                    onSeeAll = { s ->
+                        vm.sort.value = s
+                        nav.navigate("explore") { popUpTo("home") { saveState = true }; launchSingleTop = true; restoreState = true }
+                    })
             }
             composable("explore") { ExploreScreen(vm, onOpen = { nav.navigate("detail/$it") }) }
             composable("downloads") { DownloadsScreen(vm, onPlay = { nav.navigate("player/$it") }) }
