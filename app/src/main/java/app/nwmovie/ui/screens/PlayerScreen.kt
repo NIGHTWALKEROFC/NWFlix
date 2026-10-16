@@ -3,6 +3,7 @@ package app.nwmovie.ui.screens
 import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import android.media.AudioManager
+import android.media.audiofx.LoudnessEnhancer
 import android.provider.Settings
 import android.util.TypedValue
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -170,6 +171,33 @@ fun PlayerScreen(vm: MainViewModel, id: String, onBack: () -> Unit, onNext: (Str
         loadingText = null
     }
 
+    var askSaver by remember { mutableStateOf(false) }
+
+    // ---------- volume: 0-200 % like VLC (up to 100 % = phone volume, above that = extra gain) ----------
+    val am = remember { ctx.getSystemService(AudioManager::class.java) }
+    val maxVol = remember { am.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1) }
+    var volPct by remember { mutableFloatStateOf(am.getStreamVolume(AudioManager.STREAM_MUSIC).toFloat() / maxVol * 100f) }
+    val enhancer = remember { arrayOfNulls<LoudnessEnhancer>(1) }
+    fun applyVolume(pct: Float) {
+        val v = pct.coerceIn(0f, 200f)
+        am.setStreamVolume(AudioManager.STREAM_MUSIC, (v.coerceAtMost(100f) / 100f * maxVol).roundToInt(), 0)
+        try {
+            enhancer[0]?.let { e ->
+                val gain = ((v - 100f).coerceAtLeast(0f) * 10f).toInt()      // 200 % = +10 dB
+                e.setTargetGain(gain)
+                e.setEnabled(gain > 0)
+            }
+        } catch (_: Exception) { }
+    }
+    // keep the on-screen value in step with the phone's volume buttons
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(500)
+            val s = am.getStreamVolume(AudioManager.STREAM_MUSIC).toFloat() / maxVol * 100f
+            if ((volPct <= 100f && abs(s - volPct) > 100f / maxVol) || (volPct > 100f && s < 99f)) volPct = s
+        }
+    }
+
     // ---------- listener ----------
     DisposableEffect(player) {
         val l = object : Player.Listener {
@@ -183,12 +211,17 @@ fun PlayerScreen(vm: MainViewModel, id: String, onBack: () -> Unit, onNext: (Str
                     if (ServiceLocator.prefs.value.autoNext) vm.nextAfter(id)?.let { onNext(it) }
                 }
             }
+            override fun onAudioSessionIdChanged(audioSessionId: Int) {
+                enhancer[0]?.release()
+                enhancer[0] = if (audioSessionId == C.AUDIO_SESSION_ID_UNSET) null else try { LoudnessEnhancer(audioSessionId) } catch (e: Exception) { null }
+                applyVolume(volPct)
+            }
             override fun onTracksChanged(t: Tracks) { tracks = t }
             override fun onVideoSizeChanged(v: VideoSize) { vsize = v }
             override fun onPlayerError(e: PlaybackException) { error = describe(e) }
         }
         player.addListener(l)
-        onDispose { player.removeListener(l) }
+        onDispose { player.removeListener(l); enhancer[0]?.release(); enhancer[0] = null }
     }
 
     // ---------- clock: position, A-B repeat ----------
@@ -226,10 +259,16 @@ fun PlayerScreen(vm: MainViewModel, id: String, onBack: () -> Unit, onNext: (Str
             else -> ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
         }
         val cur = window?.attributes?.screenBrightness ?: -1f
-        bright = if (prefs.rememberBrightness && prefs.savedBrightness >= 0) prefs.savedBrightness
-        else if (cur >= 0) cur else try { Settings.System.getInt(ctx.contentResolver, Settings.System.SCREEN_BRIGHTNESS) / 255f } catch (e: Exception) { 0.5f }
-        if (prefs.rememberBrightness && prefs.savedBrightness >= 0 && window != null) {
-            window.attributes = window.attributes.apply { screenBrightness = prefs.savedBrightness }
+        val sys = try { Settings.System.getInt(ctx.contentResolver, Settings.System.SCREEN_BRIGHTNESS) / 255f } catch (e: Exception) { 0.5f }
+        bright = (if (cur >= 0) cur else sys).coerceIn(0.1f, 1f)
+        // Bring back the brightness / volume the user chose last time (values that look like "0" are ignored).
+        if (prefs.rememberBrightness && prefs.savedBrightness >= 0.05f && window != null) {
+            bright = prefs.savedBrightness.coerceIn(0.05f, 1f)
+            window.attributes = window.attributes.apply { screenBrightness = bright }
+        }
+        if (prefs.rememberVolume && prefs.savedVolume >= 5) {
+            volPct = prefs.savedVolume.toFloat().coerceIn(5f, 200f)
+            applyVolume(volPct)
         }
         onDispose {
             AppState.playerOpen = false; AppState.playerPlaying = false
@@ -239,7 +278,6 @@ fun PlayerScreen(vm: MainViewModel, id: String, onBack: () -> Unit, onNext: (Str
             ctrl?.show(WindowInsetsCompat.Type.systemBars())
             activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
             if (window != null) {
-                if (prefs.rememberBrightness && bright >= 0) vm.set(K.savedBrightness, bright)
                 window.attributes = window.attributes.apply { screenBrightness = WindowManagerBrightnessNone }
             }
         }
@@ -265,9 +303,6 @@ fun PlayerScreen(vm: MainViewModel, id: String, onBack: () -> Unit, onNext: (Str
     }
     LaunchedEffect(hud) { if (hud != null) { delay(900); hud = null } }
 
-    val am = remember { ctx.getSystemService(AudioManager::class.java) }
-    val maxVol = remember { am.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1) }
-    var vol by remember { mutableFloatStateOf(am.getStreamVolume(AudioManager.STREAM_MUSIC).toFloat() / maxVol) }
 
     fun seekBy(ms: Long) { player.seekTo((player.currentPosition + ms).coerceIn(0, if (dur > 0) dur else Long.MAX_VALUE)) }
     fun selectTrack(o: TrackOpt) {
@@ -344,7 +379,14 @@ fun PlayerScreen(vm: MainViewModel, id: String, onBack: () -> Unit, onNext: (Str
                     var mode = 0; var left = true; var acc = 0f; var startPos = 0L
                     detectDragGestures(
                         onDragStart = { o -> mode = 0; left = o.x < size.width / 2f; acc = 0f; startPos = player.currentPosition; pendingSeek = -1 },
-                        onDragEnd = { if (mode == 1 && pendingSeek >= 0) player.seekTo(pendingSeek); pendingSeek = -1; mode = 0 },
+                        onDragEnd = {
+                            if (mode == 1 && pendingSeek >= 0) player.seekTo(pendingSeek)
+                            if (mode == 2) {
+                                if (left && prefs.rememberBrightness) vm.set(K.savedBrightness, bright)
+                                else if (!left && prefs.rememberVolume) vm.set(K.savedVolume, volPct.roundToInt())
+                            }
+                            pendingSeek = -1; mode = 0
+                        },
                         onDragCancel = { pendingSeek = -1; mode = 0 },
                         onDrag = { change, d ->
                             change.consume()
@@ -357,13 +399,13 @@ fun PlayerScreen(vm: MainViewModel, id: String, onBack: () -> Unit, onNext: (Str
                             } else if (mode == 2) {
                                 val delta = -d.y / size.height * 1.3f
                                 if (left && prefs.brightnessGesture) {
-                                    bright = (bright + delta).coerceIn(0.02f, 1f)
+                                    bright = (bright + delta).coerceIn(0.05f, 1f)
                                     activity?.window?.let { w -> w.attributes = w.attributes.apply { screenBrightness = bright } }
                                     hud = "Brightness ${(bright * 100).roundToInt()}%"
                                 } else if (!left && prefs.volumeGesture) {
-                                    vol = (vol + delta).coerceIn(0f, 1f)
-                                    am.setStreamVolume(AudioManager.STREAM_MUSIC, (vol * maxVol).roundToInt(), 0)
-                                    hud = "Volume ${(vol * 100).roundToInt()}%"
+                                    volPct = (volPct + delta * 200f).coerceIn(0f, 200f)
+                                    applyVolume(volPct)
+                                    hud = "Volume ${volPct.roundToInt()}%" + if (volPct > 100f) "  (boost)" else ""
                                 }
                             }
                         }
@@ -412,6 +454,12 @@ fun PlayerScreen(vm: MainViewModel, id: String, onBack: () -> Unit, onNext: (Str
                 Row(Modifier.align(Alignment.TopCenter).fillMaxWidth().statusBarsPadding().padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color.White) }
                     Text(if (prefs.hideNotif) "" else (movie?.displayTitle ?: ""), color = Color.White, style = MaterialTheme.typography.titleMedium, maxLines = 1, modifier = Modifier.weight(1f))
+                    IconButton(onClick = {
+                        if (prefs.bandwidthSaver) { vm.set(K.bandwidthSaver, false); hud = "Data saver off" } else askSaver = true
+                    }) {
+                        Icon(if (prefs.bandwidthSaver) Icons.Default.DataSaverOn else Icons.Default.DataSaverOff, "Data saver",
+                            tint = if (prefs.bandwidthSaver) Color(0xFF7CE0A5) else Color.White)
+                    }
                     IconButton(onClick = { (activity as? MainActivity)?.enterPip() }) { Icon(Icons.Default.PictureInPictureAlt, "Picture in picture", tint = Color.White) }
                     IconButton(onClick = {
                         activity?.requestedOrientation = if (config.orientation == Configuration.ORIENTATION_LANDSCAPE)
@@ -445,12 +493,23 @@ fun PlayerScreen(vm: MainViewModel, id: String, onBack: () -> Unit, onNext: (Str
                         CtrlBtn(Icons.Default.Subtitles, "Subtitles") { sheet = "subs" }
                         CtrlBtn(Icons.Default.Audiotrack, "Audio") { sheet = "audio" }
                         CtrlBtn(Icons.Default.Speed, "${speed}x") { sheet = "speed" }
-                        CtrlBtn(Icons.Default.AspectRatio, "Aspect") { sheet = "aspect" }
+                        CtrlBtn(aspectIcon(aspect), aspectLabel(aspect)) { aspect = nextAspect(aspect); hud = aspectHud(aspect); touchTick++ }
                         CtrlBtn(Icons.Default.MoreHoriz, "More") { sheet = "more" }
                     }
                 }
             }
         }
+
+        if (askSaver) AlertDialog(
+            onDismissRequest = { askSaver = false },
+            title = { Text("Turn on Data saver?") },
+            text = {
+                Text("This uses less data but lowers quality: Telegram is read in smaller steps, so a slow connection may buffer more often, " +
+                    "and pictures are smaller. When a movie has several files, the smallest one is chosen the next time you press Play.")
+            },
+            confirmButton = { TextButton(onClick = { vm.set(K.bandwidthSaver, true); hud = "Data saver on"; askSaver = false }) { Text("Turn on") } },
+            dismissButton = { TextButton(onClick = { askSaver = false }) { Text("Cancel") } }
+        )
 
         // ---------- sheets ----------
         if (!pip) when (sheet) {
@@ -498,6 +557,11 @@ fun PlayerScreen(vm: MainViewModel, id: String, onBack: () -> Unit, onNext: (Str
                 Opt("Set A (repeat start): ${if (abA >= 0) fmtTime(abA) else "—"}", abA >= 0) { abA = player.currentPosition; if (abB <= abA) abB = -1 }
                 Opt("Set B (repeat end): ${if (abB >= 0) fmtTime(abB) else "—"}", abB >= 0) { if (abA >= 0 && player.currentPosition > abA) abB = player.currentPosition else vm.say("Set A first, then B later in the movie") }
                 Opt("Clear A-B repeat", false) { abA = -1; abB = -1 }
+                Opt("Aspect ratio…", false) { sheet = "aspect" }
+                Opt("Data saver: ${if (prefs.bandwidthSaver) "ON" else "OFF"}", prefs.bandwidthSaver) {
+                    sheet = null
+                    if (prefs.bandwidthSaver) { vm.set(K.bandwidthSaver, false); hud = "Data saver off" } else askSaver = true
+                }
                 Opt("Sleep timer…", sleepAt != 0L) { sheet = "sleep" }
                 Opt("Video quality…", false) { sheet = "quality" }
                 val m = movie
@@ -512,7 +576,22 @@ fun PlayerScreen(vm: MainViewModel, id: String, onBack: () -> Unit, onNext: (Str
     }
 }
 
-private const val WindowManagerBrightnessNone = -1f   // = BRIGHTNESS_OVERRIDE_NONE: go back to the system brightness
+private const val WindowManagerBrightnessNone = -1f
+
+// Tap the aspect button to jump to the next mode (like MX Player / VLC); the icon and label change with it.
+private val aspectModes = listOf("fit", "fill", "crop", "16:9", "4:3")
+private fun nextAspect(a: String) = aspectModes[(aspectModes.indexOf(a) + 1) % aspectModes.size]
+private fun aspectIcon(a: String): ImageVector = when (a) {
+    "fill" -> Icons.Default.OpenInFull
+    "crop" -> Icons.Default.Crop
+    "16:9" -> Icons.Default.Crop169
+    "4:3" -> Icons.Default.Crop54
+    else -> Icons.Default.FitScreen
+}
+private fun aspectLabel(a: String) = when (a) { "fill" -> "Stretch"; "crop" -> "Crop"; "16:9" -> "16:9"; "4:3" -> "4:3"; else -> "Fit" }
+private fun aspectHud(a: String) = when (a) {
+    "fill" -> "Stretch to screen"; "crop" -> "Crop (fill screen)"; "16:9" -> "16:9"; "4:3" -> "4:3"; else -> "Fit to screen"
+}   // = BRIGHTNESS_OVERRIDE_NONE: go back to the system brightness
 
 @Composable
 private fun CtrlBtn(icon: ImageVector, label: String, onClick: () -> Unit) {
