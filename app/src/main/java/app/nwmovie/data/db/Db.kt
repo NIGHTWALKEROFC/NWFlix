@@ -15,7 +15,8 @@ data class Movie(
     val runtime: Int = 0, val cast: String = "[]",
     val addedAt: Long = 0, val triedAt: Long = 0,
     val lastPlayedAt: Long = 0, val positionMs: Long = 0, val durationMs: Long = 0,
-    val watchlist: Boolean = false, val favorite: Boolean = false, val watched: Boolean = false
+    val watchlist: Boolean = false, val favorite: Boolean = false, val watched: Boolean = false,
+    @ColumnInfo(defaultValue = "''") val caption: String = ""
 ) {
     val matched: Boolean get() = tmdbId > 0
     val displayTitle: String get() = if (matched && title.isNotBlank()) title else parsedTitle.ifBlank { fileName }
@@ -41,7 +42,8 @@ interface MovieDao {
     @Query("SELECT * FROM movies WHERE id = :id") fun observe(id: String): Flow<Movie?>
     @Query("SELECT * FROM movies WHERE id = :id") suspend fun get(id: String): Movie?
     @Query("SELECT id FROM movies") suspend fun keys(): List<String>
-    @Query("SELECT * FROM movies WHERE tmdbId = 0 AND triedAt < :cutoff LIMIT 400") suspend fun unmatched(cutoff: Long): List<Movie>
+    @Query("SELECT * FROM movies WHERE tmdbId = 0 AND triedAt = 0 LIMIT 400") suspend fun unmatchedNew(): List<Movie>
+    @Query("SELECT * FROM movies WHERE tmdbId = 0 LIMIT 400") suspend fun unmatchedAll(): List<Movie>
     @Insert(onConflict = OnConflictStrategy.IGNORE) suspend fun insertAll(list: List<Movie>)
     @Update suspend fun update(m: Movie)
     @Query("UPDATE movies SET fileId = :fileId WHERE id = :id") suspend fun setFileId(id: String, fileId: Int)
@@ -51,6 +53,10 @@ interface MovieDao {
     @Query("UPDATE movies SET favorite = :v WHERE id = :id") suspend fun setFavorite(id: String, v: Boolean)
     @Query("UPDATE movies SET lastPlayedAt = 0, positionMs = 0 WHERE id = :id") suspend fun clearHistory(id: String)
     @Query("UPDATE movies SET lastPlayedAt = 0, positionMs = 0") suspend fun clearAllHistory()
+    @Query("UPDATE movies SET caption = :c WHERE id = :id AND caption = ''") suspend fun setCaption(id: String, c: String)
+    @Query("UPDATE movies SET watchlist = :v WHERE id IN (:ids)") suspend fun setWatchlistMany(ids: List<String>, v: Boolean)
+    @Query("UPDATE movies SET favorite = :v WHERE id IN (:ids)") suspend fun setFavoriteMany(ids: List<String>, v: Boolean)
+    @Query("UPDATE movies SET lastPlayedAt = 0, positionMs = 0 WHERE id IN (:ids)") suspend fun clearHistoryMany(ids: List<String>)
     /** Clears the index but keeps anything the user personally saved (lists, favourites, history). */
     @Query("DELETE FROM movies WHERE watchlist = 0 AND favorite = 0 AND lastPlayedAt = 0") suspend fun clearIndexKeepUserData()
 }
@@ -66,7 +72,7 @@ interface DownloadDao {
     @Query("UPDATE downloads SET done = :done, total = :total WHERE id = :id") suspend fun setProgress(id: String, done: Long, total: Long)
 }
 
-@Database(entities = [Movie::class, DownloadItem::class], version = 1, exportSchema = false)
+@Database(entities = [Movie::class, DownloadItem::class], version = 2, exportSchema = false)
 abstract class AppDb : RoomDatabase() {
     abstract fun movies(): MovieDao
     abstract fun downloads(): DownloadDao
