@@ -18,7 +18,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.nwmovie.MainViewModel
-import app.nwmovie.data.Secrets
 import app.nwmovie.data.telegram.Tg
 import app.nwmovie.ui.BrandMark
 
@@ -30,9 +29,6 @@ fun LoginScreen(vm: MainViewModel) {
     var phone by remember { mutableStateOf("") }
     var code by remember { mutableStateOf("") }
     var pass by remember { mutableStateOf("") }
-    var apiId by remember { mutableStateOf("") }
-    var apiHash by remember { mutableStateOf("") }
-    var tmdb by remember { mutableStateOf("") }
     val expired = remember { app.nwmovie.ServiceLocator.tg.wasReady }
 
     Column(
@@ -53,17 +49,10 @@ fun LoginScreen(vm: MainViewModel) {
         Spacer(Modifier.height(20.dp))
 
         when (val a = auth) {
-            is Tg.Auth.NeedKeys -> {
-                Text("One-time setup: enter your free Telegram API keys from my.telegram.org (see the README for the 2-minute guide).",
-                    style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(Modifier.height(10.dp))
-                Field("Telegram api_id", apiId, { apiId = it }, KeyboardType.Number)
-                Field("Telegram api_hash", apiHash, { apiHash = it })
-                if (Secrets.tmdbKey.isBlank()) Field("TMDB API key (free, for posters)", tmdb, { tmdb = it })
-                Spacer(Modifier.height(8.dp))
-                Button(onClick = { vm.saveKeys(apiId, apiHash, tmdb) }, enabled = apiId.isNotBlank() && apiHash.isNotBlank(),
-                    modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(14.dp)) { Text("Save & continue") }
-            }
+            is Tg.Auth.NeedKeys -> Text(
+                "This copy of NWMovie isn't set up correctly. Please install the latest version from the developer.",
+                color = MaterialTheme.colorScheme.error, textAlign = TextAlign.Center
+            )
             is Tg.Auth.WaitPhone -> {
                 Field("Phone number (with country code)", phone, { phone = it }, KeyboardType.Phone)
                 Spacer(Modifier.height(8.dp))
