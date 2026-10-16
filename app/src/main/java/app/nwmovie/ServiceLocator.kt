@@ -1,7 +1,13 @@
 package app.nwmovie
 
 import android.app.Application
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.room.Room
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import app.nwmovie.data.*
 import app.nwmovie.data.db.AppDb
 import app.nwmovie.data.telegram.Tg
@@ -28,13 +34,22 @@ object ServiceLocator {
     lateinit var indexer: Indexer
     lateinit var downloads: DownloadsManager
     lateinit var images: ImageLoader
+    /** When the app was opened the time before this one (used for the 3-day inactivity cleanup). */
+    @Volatile var prevOpen: Long = 0L
+
+    private val MIGRATION_1_2 = object : Migration(1, 2) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE movies ADD COLUMN caption TEXT NOT NULL DEFAULT ''")
+        }
+    }
 
     fun init(a: Application) {
         app = a
         Secrets.init(a)
         settings = SettingsStore(a)
         prefs = settings.flow.stateIn(scope, SharingStarted.Eagerly, runBlockingPrefs())
-        db = Room.databaseBuilder(a, AppDb::class.java, "nw.db").fallbackToDestructiveMigration().build()
+        prevOpen = prefs.value.lastOpen
+        db = Room.databaseBuilder(a, AppDb::class.java, "nw.db").addMigrations(MIGRATION_1_2).fallbackToDestructiveMigration().build()
         tg = Tg(a, scope)
         tmdb = TmdbClient(a)
         indexer = Indexer(tg, tmdb, db)
@@ -49,6 +64,18 @@ object ServiceLocator {
             .build()
         NetPolicy.init(a)
         downloads.init()
+
+        // The app only works while it is open: when it is hidden (and nothing is playing or downloading) Telegram's network is paused.
+        ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
+            override fun onStart(owner: LifecycleOwner) { scope.launch { tg.setConnected(true) } }
+            override fun onStop(owner: LifecycleOwner) {
+                scope.launch {
+                    delay(4000)
+                    val visible = ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
+                    if (!visible && !AppState.playerPlaying && !downloads.hasActive()) tg.setConnected(false)
+                }
+            }
+        })
     }
 
     private fun runBlockingPrefs(): Prefs = try {
@@ -58,6 +85,7 @@ object ServiceLocator {
     /** Used by "Clear session": removes everything stored locally except your settings. */
     suspend fun wipeLocalData() {
         downloads.deleteAll()
+        ScanStore.clear()
         withContext(Dispatchers.IO) { db.clearAllTables() }
         CacheManager.clearPosters()
         CacheManager.clearMetadata()
