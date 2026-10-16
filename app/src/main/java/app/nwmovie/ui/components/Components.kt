@@ -18,19 +18,29 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import app.nwmovie.ServiceLocator
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import app.nwmovie.data.db.Movie
 import app.nwmovie.data.tmdb.TmdbClient
 import coil.compose.AsyncImage
 import java.util.Locale
 
+/** Picture size to request: the small one while Data saver is on. */
 @Composable
-fun Poster(movie: Movie, modifier: Modifier = Modifier, showTitle: Boolean = true, onClick: () -> Unit) {
+fun imgSize(normal: String, saver: String): String {
+    val p by ServiceLocator.prefs.collectAsState()
+    return if (p.bandwidthSaver) saver else normal
+}
+
+@Composable
+fun Poster(movie: Movie, modifier: Modifier = Modifier, showTitle: Boolean = true, badge: String? = null, onClick: () -> Unit) {
     Column(modifier.clickable(onClick = onClick)) {
         Box(
             Modifier.fillMaxWidth().aspectRatio(2f / 3f).clip(RoundedCornerShape(10.dp))
                 .background(MaterialTheme.colorScheme.surfaceVariant)
         ) {
-            val url = TmdbClient.img(movie.poster)
+            val url = TmdbClient.img(movie.poster, imgSize("w342", "w185"))
             if (url != null) {
                 AsyncImage(model = url, contentDescription = movie.displayTitle, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
             } else {
@@ -41,6 +51,9 @@ fun Poster(movie: Movie, modifier: Modifier = Modifier, showTitle: Boolean = tru
                 }
             }
             if (movie.rating > 0) RatingChip(movie.rating, Modifier.align(Alignment.BottomEnd).padding(6.dp))
+            if (badge != null) Text(badge, style = MaterialTheme.typography.bodySmall, color = Color.White,
+                modifier = Modifier.align(Alignment.TopStart).padding(6.dp).clip(RoundedCornerShape(6.dp))
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.9f)).padding(horizontal = 6.dp, vertical = 2.dp))
             if (movie.positionMs > 0 && movie.durationMs > 0 && !movie.watched) {
                 LinearProgressIndicator(
                     progress = { (movie.positionMs.toFloat() / movie.durationMs).coerceIn(0f, 1f) },
