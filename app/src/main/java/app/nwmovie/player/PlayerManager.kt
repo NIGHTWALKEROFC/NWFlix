@@ -53,13 +53,13 @@ object PlayerManager {
             }
 
         // Telegram-aware data source: tg:// URIs are streamed through TDLib, everything else is normal.
-        val window = { if (ServiceLocator.prefs.value.bandwidthSaver) 32L * 1024 * 1024 else 128L * 1024 * 1024 }
+        val window = { if (ServiceLocator.prefs.value.bandwidthSaver) 16L * 1024 * 1024 else 128L * 1024 * 1024 }
         val dataSources = DefaultDataSource.Factory(ctx, TelegramDataSource.Factory(ServiceLocator.tg, window))
         val sourceFactory = DefaultMediaSourceFactory(dataSources, DefaultExtractorsFactory().setConstantBitrateSeekingEnabled(true))
 
         // Start quickly (1.5 s), recover quickly after a stall (3 s), keep a healthy cushion ahead.
         val load = DefaultLoadControl.Builder()
-            .setBufferDurationsMs(15_000, if (p.bandwidthSaver) 30_000 else 75_000, 1_500, 3_000)
+            .setBufferDurationsMs(if (p.bandwidthSaver) 10_000 else 15_000, if (p.bandwidthSaver) 25_000 else 75_000, 1_500, 3_000)
             .setPrioritizeTimeOverSizeThresholds(true)
             .build()
 
