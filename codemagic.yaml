@@ -1,17 +1,41 @@
-# Codemagic build file for NWMovie.
-# One workflow per CPU type. Pick the one that matches the phone (see README "Which build do I install?").
-# Secrets (TG_API_ID, TG_API_HASH, TMDB_API_KEY) are OPTIONAL here: create a variable group called
-# "nwmovie_secrets" in Codemagic (Teams → Global variables and secrets) – or delete the "groups" lines
-# and type the keys inside the app on first launch instead.
+# NWMovie - Codemagic build file. Codemagic picks up every push to "main" automatically.
 #
-# Builds are started manually ("Start new build"). To build on every push, add under a workflow:
-#   triggering:
-#     events: [push]
-#     branch_patterns:
-#       - pattern: main
-#         include: true
+# 1) KEYSTORE: replace  nwmovie_keystore  (4 places) with the reference name of the keystore
+#    you already uploaded in Codemagic (Teams > Code signing identities > Android keystores).
+# 2) Optional keys: TG_API_ID, TG_API_HASH, TMDB_API_KEY. If you do not set them anywhere the app asks for them on first start.
+#    To bake them into the build: create a variable group in Codemagic (e.g. "nwmovie_secrets") with those three
+#    variables, then remove the "#" in front of the "groups:" lines.
+# 3) Needs gradlew and gradle/wrapper/gradle-wrapper.jar in the repository (see README).
+#
+# Only "android-universal" starts automatically on a push (it builds every CPU type + one universal APK).
+# The single-CPU workflows are started by hand with "Start new build" to save build minutes.
 
 workflows:
+
+  android-universal:
+    name: NWMovie - all CPU types + universal APK
+    instance_type: linux_x2
+    max_build_duration: 60
+    environment:
+      java: 17
+      android_signing:
+        - nwmovie_keystore
+      # groups:
+      #   - nwmovie_secrets
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: main
+          include: true
+    scripts:
+      - name: Build release APKs
+        script: |
+          echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
+          chmod +x ./gradlew
+          ./gradlew --no-daemon assembleRelease -Pabi=universal
+    artifacts:
+      - app/build/outputs/apk/release/*.apk
 
   android-arm64-v8a:
     name: NWMovie - arm64-v8a (most phones since 2017)
@@ -19,20 +43,18 @@ workflows:
     max_build_duration: 45
     environment:
       java: 17
-      groups:
-        - nwmovie_secrets
-      vars:
-        ABI: arm64-v8a
-        GRADLE_TASK: assembleRelease
-      # For a stable signing key (needed for Play Store / updates over older installs) add:
-      # android_signing:
-      #   - nwmovie_keystore
+      android_signing:
+        - nwmovie_keystore
+      # groups:
+      #   - nwmovie_secrets
     scripts:
-      - name: Build APK
-        script: bash scripts/build_android.sh
+      - name: Build release APK
+        script: |
+          echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
+          chmod +x ./gradlew
+          ./gradlew --no-daemon assembleRelease -Pabi=arm64-v8a
     artifacts:
       - app/build/outputs/apk/release/*.apk
-      - app/build/outputs/mapping/release/mapping.txt
 
   android-armeabi-v7a:
     name: NWMovie - armeabi-v7a (older 32-bit phones)
@@ -40,17 +62,18 @@ workflows:
     max_build_duration: 45
     environment:
       java: 17
-      groups:
-        - nwmovie_secrets
-      vars:
-        ABI: armeabi-v7a
-        GRADLE_TASK: assembleRelease
+      android_signing:
+        - nwmovie_keystore
+      # groups:
+      #   - nwmovie_secrets
     scripts:
-      - name: Build APK
-        script: bash scripts/build_android.sh
+      - name: Build release APK
+        script: |
+          echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
+          chmod +x ./gradlew
+          ./gradlew --no-daemon assembleRelease -Pabi=armeabi-v7a
     artifacts:
       - app/build/outputs/apk/release/*.apk
-      - app/build/outputs/mapping/release/mapping.txt
 
   android-x86_64:
     name: NWMovie - x86_64 (emulators, Chromebooks)
@@ -58,52 +81,15 @@ workflows:
     max_build_duration: 45
     environment:
       java: 17
-      groups:
-        - nwmovie_secrets
-      vars:
-        ABI: x86_64
-        GRADLE_TASK: assembleRelease
+      android_signing:
+        - nwmovie_keystore
+      # groups:
+      #   - nwmovie_secrets
     scripts:
-      - name: Build APK
-        script: bash scripts/build_android.sh
+      - name: Build release APK
+        script: |
+          echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
+          chmod +x ./gradlew
+          ./gradlew --no-daemon assembleRelease -Pabi=x86_64
     artifacts:
       - app/build/outputs/apk/release/*.apk
-      - app/build/outputs/mapping/release/mapping.txt
-
-  android-universal:
-    name: NWMovie - all CPU types + one universal APK
-    instance_type: linux_x2
-    max_build_duration: 60
-    environment:
-      java: 17
-      groups:
-        - nwmovie_secrets
-      vars:
-        ABI: universal
-        GRADLE_TASK: assembleRelease
-    scripts:
-      - name: Build APKs
-        script: bash scripts/build_android.sh
-    artifacts:
-      - app/build/outputs/apk/release/*.apk
-      - app/build/outputs/mapping/release/mapping.txt
-
-  android-app-bundle:
-    name: NWMovie - Android App Bundle (.aab for Play Store)
-    instance_type: linux_x2
-    max_build_duration: 60
-    environment:
-      java: 17
-      groups:
-        - nwmovie_secrets
-      vars:
-        GRADLE_TASK: bundleRelease
-      # A bundle for the Play Store must be signed with your own key:
-      # android_signing:
-      #   - nwmovie_keystore
-    scripts:
-      - name: Build AAB
-        script: bash scripts/build_android.sh
-    artifacts:
-      - app/build/outputs/bundle/release/*.aab
-      - app/build/outputs/mapping/release/mapping.txt
