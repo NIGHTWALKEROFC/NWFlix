@@ -3,6 +3,7 @@ package app.nwmovie.data.telegram
 import android.app.Application
 import android.os.Build
 import app.nwmovie.BuildConfig
+import app.nwmovie.data.ScanStore
 import app.nwmovie.data.Secrets
 import app.nwmovie.data.db.Movie
 import kotlinx.coroutines.*
@@ -181,7 +182,13 @@ class Tg(private val app: Application, private val scope: CoroutineScope) {
             ids.map { cid ->
                 async {
                     sem.withPermit {
-                        try { scanChat(cid, known, full, out) } catch (_: Exception) { }
+                        try {
+                            val last = call(TdApi.GetChat(cid)).lastMessage?.id ?: 0L      // answered from TDLib's local copy
+                            val seen = if (full) 0L else ScanStore.get(cid)
+                            if (seen != 0L && last == seen) return@withPermit               // nothing new in this chat: skip it
+                            scanChat(cid, known, full, seen, out)
+                            if (last != 0L) ScanStore.set(cid, last)                       // remember how far this chat was checked
+                        } catch (_: Exception) { }
                         onFound(out.size)
                     }
                 }
@@ -190,13 +197,15 @@ class Tg(private val app: Application, private val scope: CoroutineScope) {
         return out.toList()
     }
 
-    private suspend fun scanChat(chatId: Long, known: Set<String>, full: Boolean, out: MutableList<RawItem>) {
+    /** seen = last message already checked in an earlier scan (0 = never scanned: look deep once). */
+    private suspend fun scanChat(chatId: Long, known: Set<String>, full: Boolean, seen: Long, out: MutableList<RawItem>) {
+        val deep = full || seen == 0L
         val filters = listOf<TdApi.SearchMessagesFilter>(TdApi.SearchMessagesFilterVideo(), TdApi.SearchMessagesFilterDocument())
         for (flt in filters) {
             var from = 0L
             var pages = 0
             var retries = 0
-            val maxPages = if (full) 40 else 6
+            val maxPages = if (deep) 40 else 6
             while (pages < maxPages) {
                 val req = TdApi.SearchChatMessages()
                 req.chatId = chatId
@@ -214,12 +223,13 @@ class Tg(private val app: Application, private val scope: CoroutineScope) {
                 }
                 val msgs = res.messages
                 if (msgs == null || msgs.isEmpty()) break
-                var fresh = 0
+                var reachedOld = false
                 for (m in msgs) {
+                    if (!deep && m.id <= seen) { reachedOld = true; break }       // results are newest-first: everything after this was scanned before
                     val raw = toRaw(m) ?: continue
-                    if ("${raw.chatId}_${raw.messageId}" !in known) { out.add(raw); fresh++ }
+                    if (full || "${raw.chatId}_${raw.messageId}" !in known) out.add(raw)
                 }
-                if (!full && fresh == 0) break
+                if (reachedOld) break
                 from = res.nextFromMessageId
                 if (from == 0L) break
                 pages++
@@ -268,6 +278,11 @@ class Tg(private val app: Application, private val scope: CoroutineScope) {
 
     suspend fun cancelDownload(fileId: Int) { try { call(TdApi.CancelDownloadFile(fileId, false)) } catch (_: Exception) { } }
     suspend fun deleteFile(fileId: Int) { try { call(TdApi.DeleteFile(fileId)) } catch (_: Exception) { } }
+
+    /** Called when the app goes to the background / comes back: no Telegram traffic while the app is hidden. */
+    suspend fun setConnected(on: Boolean) {
+        try { call(TdApi.SetNetworkType(if (on) TdApi.NetworkTypeOther() else TdApi.NetworkTypeNone())) } catch (_: Exception) { }
+    }
 
     fun pin(id: Int) { pinned.add(id) }
     fun unpin(id: Int) { pinned.remove(id) }
