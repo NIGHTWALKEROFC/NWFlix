@@ -42,7 +42,7 @@ object CacheManager {
     }
 
     /** Your watchlist, favourites and history are kept. */
-    suspend fun clearIndex() = ServiceLocator.db.movies().clearIndexKeepUserData()
+    suspend fun clearIndex() { ServiceLocator.db.movies().clearIndexKeepUserData(); ScanStore.clear() }
 
     suspend fun clearTemp() = ServiceLocator.tg.optimizeTemp(0, 0, all = true)
 
@@ -51,18 +51,10 @@ object CacheManager {
         val p = ServiceLocator.prefs.value
         if (!p.autoClean) return
         val threeDays = 3L * 86400_000
-        val inactive = p.lastOpen > 0 && System.currentTimeMillis() - p.lastOpen > threeDays
+        val prev = ServiceLocator.prevOpen
+        val inactive = prev > 0 && System.currentTimeMillis() - prev > threeDays
         if (inactive) { clearPosters() }
         ServiceLocator.tmdb.dir.listFiles()?.forEach { if (System.currentTimeMillis() - it.lastModified() > threeDays) it.delete() }
         ServiceLocator.tg.optimizeTemp(p.tempCacheMb * 1024L * 1024L, (threeDays / 1000).toInt(), all = false)
-    }
-
-    /** Variant for the background worker (TDLib is not running there). */
-    fun autoCleanOffline(ctx: Context) {
-        val p = ServiceLocator.prefs.value
-        if (!p.autoClean) return
-        val threeDays = 3L * 86400_000
-        if (p.lastOpen > 0 && System.currentTimeMillis() - p.lastOpen > threeDays) clearPosters()
-        ServiceLocator.tmdb.dir.listFiles()?.forEach { if (System.currentTimeMillis() - it.lastModified() > threeDays) it.delete() }
     }
 }
