@@ -133,7 +133,7 @@ gradle.taskGraph.whenReady {
     val releaseBuild = allTasks.any { it.name == "assembleRelease" }
     if (releaseBuild && ksPath == null) {
         throw GradleException(
-            "Release keystore not found. In codemagic.yaml the workflow needs  android_signing: - <your keystore reference name>  (the name of the keystore you uploaded to Codemagic)."
+            "Release keystore not found. In codemagic.yaml the workflow needs  android_signing: - <your keystore reference name>  (here: nightwalker_keystore, the keystore you uploaded to Codemagic)."
         )
     }
 }
