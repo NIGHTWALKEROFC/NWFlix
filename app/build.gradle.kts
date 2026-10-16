@@ -116,7 +116,7 @@ dependencies {
     implementation("androidx.media3:media3-session:$media3")
     implementation("androidx.media3:media3-common:$media3")
 
-    // Telegram TDLib (prebuilt Android binaries on Maven Central, Boost licence)
+    // Telegram TDLib (prebuilt Android binaries, served from JitPack - see settings.gradle.kts)
     implementation("com.github.tdlibx:td:1.8.56")
 
     implementation("io.coil-kt:coil-compose:2.7.0")
