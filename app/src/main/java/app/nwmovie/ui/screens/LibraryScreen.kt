@@ -24,7 +24,8 @@ import coil.compose.AsyncImage
 /** "My List": Watchlist / History / Liked. */
 @Composable
 fun LibraryScreen(vm: MainViewModel, onOpen: (String) -> Unit) {
-    val movies by vm.movies.collectAsState()
+    val groups by vm.groups.collectAsState()
+    val movies = remember(groups) { groups.map { it.view } }
     var tab by remember { mutableIntStateOf(0) }
     val titles = listOf("Watchlist", "History", "Liked")
     val list = remember(movies, tab) {
