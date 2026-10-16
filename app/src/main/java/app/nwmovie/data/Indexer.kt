@@ -27,15 +27,19 @@ class Indexer(private val tg: Tg, private val tmdb: TmdbClient, private val db: 
             state.value = State(true, "Scanning your Telegram chats…")
             val known = db.movies().keys().toSet()
             val raws = tg.scan(known, full) { n -> state.value = state.value.copy(found = n) }
-            val fresh = raws.filter { FilenameParser.looksLikeMovie(it) }.mapNotNull { toMovie(it) }
+            val movieRaws = raws.filter { FilenameParser.looksLikeMovie(it) }
+            val fresh = movieRaws.filter { "${it.chatId}_${it.messageId}" !in known }.mapNotNull { toMovie(it) }
             db.movies().insertAll(fresh)
+            // Older rows have no caption yet: fill it in so each file can show its quality/language details.
+            if (full) movieRaws.filter { "${it.chatId}_${it.messageId}" in known && it.caption.isNotBlank() }
+                .forEach { db.movies().setCaption("${it.chatId}_${it.messageId}", it.caption.take(500)) }
 
             if (!tmdb.hasKey()) {
-                state.value = State(false, error = "Add a free TMDB API key in Settings → Account & Security to get posters and details.", found = fresh.size)
+                state.value = State(false, error = "Movie details aren't available in this build, so posters can't be loaded.", found = fresh.size)
                 return
             }
-            val cutoff = if (full) Long.MAX_VALUE else System.currentTimeMillis() - 3L * 86400_000
-            val todo = db.movies().unmatched(cutoff)
+            // Movie details are saved permanently. Only movies never looked up before are fetched (a full rescan retries the unmatched ones).
+            val todo = if (full) db.movies().unmatchedAll() else db.movies().unmatchedNew()
             state.value = State(true, "Fetching movie details…", found = fresh.size)
             val sem = Semaphore(4)
             val done = AtomicInteger(0)
@@ -51,8 +55,9 @@ class Indexer(private val tg: Tg, private val tmdb: TmdbClient, private val db: 
                     }
                 }.awaitAll()
             }
-            state.value = State(false, found = fresh.size, error = if (authFailed) "TMDB rejected your API key. Check it in Settings → Account & Security." else null)
+            state.value = State(false, found = fresh.size, error = if (authFailed) "The movie details service rejected the request. Please update the app." else null)
         } catch (e: CancellationException) {
+            state.value = State(false)
             throw e
         } catch (e: Exception) {
             state.value = State(false, error = e.message ?: "Scan failed")
@@ -66,7 +71,7 @@ class Indexer(private val tg: Tg, private val tmdb: TmdbClient, private val db: 
         return Movie(
             id = "${r.chatId}_${r.messageId}", chatId = r.chatId, messageId = r.messageId, fileId = r.fileId,
             fileName = r.name, size = r.size, durationSec = r.durationSec, mime = r.mime,
-            parsedTitle = p.title, parsedYear = p.year, addedAt = r.dateSec * 1000L
+            parsedTitle = p.title, parsedYear = p.year, addedAt = r.dateSec * 1000L, caption = r.caption.take(500)
         )
     }
 
