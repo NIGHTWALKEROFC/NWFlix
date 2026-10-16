@@ -2,6 +2,7 @@ package app.nwmovie.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -149,11 +150,11 @@ private fun FixMatchDialog(vm: MainViewModel, m: Movie, onClose: () -> Unit) {
                 if (loading) LinearProgressIndicator(Modifier.fillMaxWidth().padding(top = 8.dp))
                 results?.let { r ->
                     if (r.isEmpty() && !loading) Text("No results. Check your TMDB key in Settings.", style = MaterialTheme.typography.bodySmall)
-                    Column(Modifier.heightIn(max = 280.dp).verticalScrollCompat()) {
+                    Column(Modifier.heightIn(max = 280.dp).verticalScroll(rememberScrollState())) {
                         r.forEach { h ->
                             ListItem(
                                 headlineContent = { Text(h.title) }, supportingContent = { Text(if (h.year > 0) h.year.toString() else "—") },
-                                modifier = Modifier.clickableCompat { vm.applyMatch(m, h.id); onClose() },
+                                modifier = Modifier.clickable { vm.applyMatch(m, h.id); onClose() },
                                 colors = ListItemDefaults.colors(containerColor = Color.Transparent)
                             )
                         }
@@ -165,6 +166,3 @@ private fun FixMatchDialog(vm: MainViewModel, m: Movie, onClose: () -> Unit) {
         dismissButton = { TextButton(onClick = onClose) { Text("Close") } }
     )
 }
-
-private fun Modifier.verticalScrollCompat(): Modifier = this.then(Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState()))
-private fun Modifier.clickableCompat(onClick: () -> Unit): Modifier = this.then(Modifier.clickable(onClick = onClick))
