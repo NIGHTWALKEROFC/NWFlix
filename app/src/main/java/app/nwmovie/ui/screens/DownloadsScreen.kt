@@ -28,13 +28,13 @@ import coil.compose.AsyncImage
 
 @Composable
 fun DownloadsScreen(vm: MainViewModel, onPlay: (String) -> Unit) {
-    val items by vm.downloads.collectAsState()
+    val dl by vm.downloads.collectAsState()
     var tab by remember { mutableIntStateOf(0) }
     val ctx = LocalContext.current
-    val running = items.filter { it.first.state != DownloadItem.DONE }
-    val done = items.filter { it.first.state == DownloadItem.DONE }
+    val running = dl.filter { it.first.state != DownloadItem.DONE }
+    val done = dl.filter { it.first.state == DownloadItem.DONE }
     val list = if (tab == 0) running else done
-    val used = remember(items) { CacheManager.dirSize(ServiceLocator.downloads.dir) }
+    val used = remember(dl) { CacheManager.dirSize(ServiceLocator.downloads.dir) }
     val stat = remember { StatFs(ctx.filesDir.path) }
     val total = stat.totalBytes
     var confirm by remember { mutableStateOf<String?>(null) }
