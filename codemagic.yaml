@@ -1,95 +1,50 @@
-# NWMovie - Codemagic build file. Codemagic picks up every push to "main" automatically.
+# NWMovie - Codemagic build file (same style as your NWisp Chat setup).
 #
-# 1) KEYSTORE: replace  nwmovie_keystore  (4 places) with the reference name of the keystore
-#    you already uploaded in Codemagic (Teams > Code signing identities > Android keystores).
-# 2) Optional keys: TG_API_ID, TG_API_HASH, TMDB_API_KEY. If you do not set them anywhere the app asks for them on first start.
-#    To bake them into the build: create a variable group in Codemagic (e.g. "nwmovie_secrets") with those three
-#    variables, then remove the "#" in front of the "groups:" lines.
-# 3) Needs gradlew and gradle/wrapper/gradle-wrapper.jar in the repository (see README).
+# * No "instance_type" line on purpose: your free Codemagic plan only allows the default machine
+#   (asking for linux_x2 gives "instance type is not available with the current billing plan").
+# * Signing uses the keystore you already uploaded in Codemagic (reference name: nightwalker_keystore).
+#   If you want a different keystore for this app, change that one name below.
+# * One workflow builds every CPU type in a single run: arm64-v8a, armeabi-v7a, x86_64
+#   plus one universal APK (all files appear under "Artifacts").
+# * Start it with "Start new build" in Codemagic - it always fetches the newest code from GitHub.
+#   (To build automatically on every push, add under the workflow:
+#      triggering:
+#        events: [push]
+#        branch_patterns:
+#          - pattern: main
+#            include: true )
 #
-# Only "android-universal" starts automatically on a push (it builds every CPU type + one universal APK).
-# The single-CPU workflows are started by hand with "Start new build" to save build minutes.
+# OPTIONAL build-time keys (Telegram api_id / api_hash, TMDB key):
+#   You do not need them here. If they are not set, NWMovie asks for them on its first screen and keeps
+#   them encrypted on the phone, so nothing secret ever sits in the repository.
+#   (Codemagic can't read GitHub Secrets. To bake keys into the APK, remove the "#" below and use
+#   your real values only if the repository is PRIVATE, or add them in Codemagic > app > Environment variables.)
+#
+#      vars:
+#        TG_API_ID: "1234567"
+#        TG_API_HASH: "your_api_hash"
+#        TMDB_API_KEY: "your_tmdb_v3_key"
 
 workflows:
-
-  android-universal:
-    name: NWMovie - all CPU types + universal APK
-    instance_type: linux_x2
+  nwmovie-android:
+    name: NWMovie - Android (all CPU types + universal)
     max_build_duration: 60
     environment:
       java: 17
       android_signing:
-        - nwmovie_keystore
-      # groups:
-      #   - nwmovie_secrets
-    triggering:
-      events:
-        - push
-      branch_patterns:
-        - pattern: main
-          include: true
+        - nightwalker_keystore
     scripts:
       - name: Build release APKs
         script: |
           echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
-          chmod +x ./gradlew
-          ./gradlew --no-daemon assembleRelease -Pabi=universal
-    artifacts:
-      - app/build/outputs/apk/release/*.apk
-
-  android-arm64-v8a:
-    name: NWMovie - arm64-v8a (most phones since 2017)
-    instance_type: linux_x2
-    max_build_duration: 45
-    environment:
-      java: 17
-      android_signing:
-        - nwmovie_keystore
-      # groups:
-      #   - nwmovie_secrets
-    scripts:
-      - name: Build release APK
-        script: |
-          echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
-          chmod +x ./gradlew
-          ./gradlew --no-daemon assembleRelease -Pabi=arm64-v8a
-    artifacts:
-      - app/build/outputs/apk/release/*.apk
-
-  android-armeabi-v7a:
-    name: NWMovie - armeabi-v7a (older 32-bit phones)
-    instance_type: linux_x2
-    max_build_duration: 45
-    environment:
-      java: 17
-      android_signing:
-        - nwmovie_keystore
-      # groups:
-      #   - nwmovie_secrets
-    scripts:
-      - name: Build release APK
-        script: |
-          echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
-          chmod +x ./gradlew
-          ./gradlew --no-daemon assembleRelease -Pabi=armeabi-v7a
-    artifacts:
-      - app/build/outputs/apk/release/*.apk
-
-  android-x86_64:
-    name: NWMovie - x86_64 (emulators, Chromebooks)
-    instance_type: linux_x2
-    max_build_duration: 45
-    environment:
-      java: 17
-      android_signing:
-        - nwmovie_keystore
-      # groups:
-      #   - nwmovie_secrets
-    scripts:
-      - name: Build release APK
-        script: |
-          echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
-          chmod +x ./gradlew
-          ./gradlew --no-daemon assembleRelease -Pabi=x86_64
+          if [ -f gradle/wrapper/gradle-wrapper.jar ] && [ -f gradlew ]; then
+            chmod +x ./gradlew
+            GRADLE=./gradlew
+          else
+            curl -fsSL https://services.gradle.org/distributions/gradle-8.10.2-bin.zip -o /tmp/gradle.zip
+            unzip -q /tmp/gradle.zip -d /tmp
+            GRADLE=/tmp/gradle-8.10.2/bin/gradle
+          fi
+          $GRADLE --no-daemon assembleRelease -Pabi=universal
     artifacts:
       - app/build/outputs/apk/release/*.apk
