@@ -20,6 +20,8 @@ import androidx.compose.ui.unit.sp
 import app.nwmovie.MainViewModel
 import app.nwmovie.data.telegram.Tg
 import app.nwmovie.ui.BrandMark
+import androidx.compose.ui.platform.LocalContext
+import app.nwmovie.data.K
 
 @Composable
 fun LoginScreen(vm: MainViewModel) {
@@ -30,6 +32,9 @@ fun LoginScreen(vm: MainViewModel) {
     var code by remember { mutableStateOf("") }
     var pass by remember { mutableStateOf("") }
     val expired = remember { app.nwmovie.ServiceLocator.tg.wasReady }
+    val ctx = LocalContext.current
+    val prefs by vm.prefs.collectAsState()
+    var guide by remember { mutableStateOf(false) }
 
     Column(
         Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().imePadding().verticalScroll(rememberScrollState()).padding(24.dp),
@@ -60,6 +65,7 @@ fun LoginScreen(vm: MainViewModel) {
                     modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(14.dp)) {
                     if (busy) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp) else { Icon(Icons.Default.Send, null); Spacer(Modifier.width(8.dp)); Text("Login with Telegram") }
                 }
+                TextButton(onClick = { guide = true }) { Icon(Icons.Default.HelpOutline, null); Spacer(Modifier.width(6.dp)); Text(tr(prefs.uiLang, "How does login work?", "ലോഗിൻ എങ്ങനെ ചെയ്യും?")) }
             }
             is Tg.Auth.WaitCode -> {
                 Text("Enter the code Telegram just sent to your Telegram app (or SMS).", color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
@@ -68,6 +74,15 @@ fun LoginScreen(vm: MainViewModel) {
                 Spacer(Modifier.height(8.dp))
                 Button(onClick = { vm.submitCode(code) }, enabled = code.length >= 4 && !busy,
                     modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(14.dp)) { Text("Verify") }
+                Spacer(Modifier.height(10.dp))
+                OutlinedButton(onClick = { if (!openTelegram(ctx)) vm.say("Telegram is not installed on this phone") },
+                    Modifier.fillMaxWidth().height(48.dp), shape = RoundedCornerShape(14.dp)) {
+                    Icon(Icons.Default.Send, null); Spacer(Modifier.width(8.dp)); Text(tr(prefs.uiLang, "Open Telegram to see the code", "കോഡ് കാണാൻ Telegram തുറക്കുക"))
+                }
+                Row(horizontalArrangement = Arrangement.Center, modifier = Modifier.fillMaxWidth()) {
+                    TextButton(onClick = { vm.resendCode() }, enabled = !busy) { Text(tr(prefs.uiLang, "Resend code", "കോഡ് വീണ്ടും അയക്കുക")) }
+                    TextButton(onClick = { guide = true }) { Text(tr(prefs.uiLang, "Didn't get the code?", "കോഡ് കിട്ടിയില്ലേ?")) }
+                }
             }
             is Tg.Auth.WaitPassword -> {
                 Text("Your account has two-step verification. Enter your password.", color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
@@ -87,10 +102,16 @@ fun LoginScreen(vm: MainViewModel) {
         Info(Icons.Default.Shield, "Secure & encrypted", "Your session is encrypted on this phone.")
         Info(Icons.Default.Movie, "Only movies", "Documents and other files are filtered out.")
         Info(Icons.Default.VisibilityOff, "Private", "Nothing leaves your device except Telegram and TMDB requests.")
+        LoginGuideHost(guide, prefs.uiLang, { vm.set(K.uiLang, it) }) { guide = false }
         Spacer(Modifier.height(12.dp))
         Text("Only use NWMovie with content you are allowed to watch.", style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
     }
+}
+
+@Composable
+private fun LoginGuideHost(show: Boolean, lang: String, onLang: (String) -> Unit, onClose: () -> Unit) {
+    if (show) OtpGuideDialog(lang, onLang, onClose)
 }
 
 @Composable
