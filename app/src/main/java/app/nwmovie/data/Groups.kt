@@ -3,32 +3,83 @@ package app.nwmovie.data
 import app.nwmovie.data.db.Movie
 
 private fun norm(s: String) = s.lowercase().replace(Regex("[^a-z0-9]+"), "")
+private val PART_RE = Regex("(?i)(?<![a-z0-9])(cd|disc|disk|part|pt)[ ._-]?(\\d)(?![0-9a-z])")
 
-/** Files of the same movie share this key (same TMDB id, or same cleaned title + year when not matched). */
-fun Movie.groupKey(): String = if (tmdbId > 0) "t$tmdbId" else "n${norm(parsedTitle.ifBlank { fileName })}_$parsedYear"
+/** Files of the same movie / series share this key (same TMDB id, or same cleaned title (+ year for movies) when not matched). */
+fun Movie.groupKey(): String = when {
+    tmdbId > 0 -> if (isSeries) "s$tmdbId" else "t$tmdbId"
+    isSeries -> "ns${norm(parsedTitle.ifBlank { fileName })}"
+    else -> "n${norm(parsedTitle.ifBlank { fileName })}_$parsedYear"
+}
 
-/** One movie that may exist as several Telegram files (1080p, 720p, different languages…). */
+/** Parts of one multi-part movie (CD1/CD2, Part 1/Part 2) share this key. */
+fun partKey(f: Movie): String? = if (f.part > 0) norm(f.fileName.replace(PART_RE, " ")) else null
+
+val RES_ORDER = listOf("4K", "1440p", "1080p", "720p", "576p", "480p", "360p", "Other")
+val LANGUAGE_TAGS = setOf("Hindi", "English", "Tamil", "Telugu", "Malayalam", "Kannada", "Bengali", "Punjabi", "Marathi",
+    "Korean", "Japanese", "Spanish", "French", "German", "Arabic")
+
+fun qualityOf(m: Movie): String = fileTags(m).firstOrNull { it in RES_ORDER } ?: "Other"
+
+/** One playable thing: a single file, or all parts of a multi-part movie. */
+class FileEntry(val files: List<Movie>) {
+    val lead: Movie get() = files.first()
+    val size: Long get() = files.sumOf { it.size }
+    val isMulti: Boolean get() = files.size > 1
+}
+
+class QualityInfo(val label: String, val files: List<Movie>) {
+    val episodes: Int get() = files.map { it.season to it.episode }.distinct().size
+    val size: Long get() = files.sumOf { it.size }
+}
+
+/** One movie or series that may exist as several Telegram files (1080p, 720p, different languages, parts…). */
 class MovieGroup(val files: List<Movie>) {
     private val rep: Movie = files.filter { it.lastPlayedAt > 0 }.maxByOrNull { it.lastPlayedAt }
         ?: files.maxByOrNull { it.size } ?: files.first()
 
     val id: String get() = rep.id
-    val fileCount: Int get() = files.size
+    val isSeries: Boolean = files.any { it.isSeries }
+    val episodeCount: Int get() = files.map { it.season to it.episode }.distinct().size
 
-    /** What posters/lists show: the movie's details with lists/history merged across all its files. */
+    /** What posters/lists show: the details with lists/history merged across all files. */
     val view: Movie = rep.copy(
         watchlist = files.any { it.watchlist }, favorite = files.any { it.favorite },
         lastPlayedAt = files.maxOf { it.lastPlayedAt }, addedAt = files.maxOf { it.addedAt }
     )
 
+    /** Files, with the parts of multi-part movies joined into one entry. */
+    val entries: List<FileEntry> = run {
+        val multi = files.filter { it.part > 0 }.groupBy { partKey(it) }
+            .filter { (_, v) -> v.map { it.part }.distinct().size >= 2 }
+        val used = multi.values.flatten().map { it.id }.toSet()
+        multi.values.map { FileEntry(it.sortedBy { f -> f.part }) } + files.filter { it.id !in used }.map { FileEntry(listOf(it)) }
+    }
+    val fileCount: Int get() = entries.size
+
+    val badge: String? get() = if (isSeries) "$episodeCount eps" else if (entries.size > 1) "${entries.size} files" else null
+
     /** A file that was started but not finished. */
     val resumeFile: Movie? = files.filter { it.lastPlayedAt > 0 && !it.watched && it.positionMs > 5000 }.maxByOrNull { it.lastPlayedAt }
 
-    /** What the big Play button plays: the unfinished file, otherwise the largest (best quality) one. */
-    val playFile: Movie = resumeFile ?: files.maxByOrNull { it.size } ?: files.first()
+    val bestFile: Movie = entries.maxByOrNull { it.size }?.lead ?: files.first()
+    val smallestFile: Movie = entries.minByOrNull { if (it.size > 0) it.size else Long.MAX_VALUE }?.lead ?: files.first()
+    val playFile: Movie get() = resumeFile ?: bestFile
 
-    /** Used by Data saver: the smallest file uses the least data. */
-    val smallestFile: Movie = files.minByOrNull { if (it.size > 0) it.size else Long.MAX_VALUE } ?: files.first()
+    /** Smart choice: best quality on Wi-Fi, smallest on mobile data / Data saver. */
+    fun pick(saver: Boolean, metered: Boolean, smart: Boolean): Movie =
+        resumeFile ?: if (saver || (smart && metered)) smallestFile else bestFile
+
+    val languages: Set<String> by lazy { files.flatMap { fileTags(it) }.filter { it in LANGUAGE_TAGS }.toSet() }
+
+    // ----- series -----
+    val qualities: List<QualityInfo> by lazy {
+        files.groupBy { qualityOf(it) }.map { QualityInfo(it.key, it.value) }
+            .sortedBy { RES_ORDER.indexOf(it.label).let { i -> if (i < 0) 99 else i } }
+    }
+    /** Episodes in correct order (season, then episode). q = quality, null = all. */
+    fun episodesFor(q: String?): List<Movie> = files.filter { q == null || qualityOf(it) == q }
+        .sortedWith(compareBy<Movie>({ it.season }, { it.episode }).thenByDescending { it.size })
 }
 
 fun List<Movie>.toGroups(): List<MovieGroup> = groupBy { it.groupKey() }.values.map { MovieGroup(it) }
