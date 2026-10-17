@@ -37,6 +37,13 @@ object ServiceLocator {
     /** When the app was opened the time before this one (used for the 3-day inactivity cleanup). */
     @Volatile var prevOpen: Long = 0L
 
+    private val MIGRATION_2_3 = object : Migration(2, 3) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            for (col in listOf("season", "episode", "isSeries", "part", "watchedMs"))
+                db.execSQL("ALTER TABLE movies ADD COLUMN $col INTEGER NOT NULL DEFAULT 0")
+        }
+    }
+
     private val MIGRATION_1_2 = object : Migration(1, 2) {
         override fun migrate(db: SupportSQLiteDatabase) {
             db.execSQL("ALTER TABLE movies ADD COLUMN caption TEXT NOT NULL DEFAULT ''")
@@ -49,7 +56,7 @@ object ServiceLocator {
         settings = SettingsStore(a)
         prefs = settings.flow.stateIn(scope, SharingStarted.Eagerly, runBlockingPrefs())
         prevOpen = prefs.value.lastOpen
-        db = Room.databaseBuilder(a, AppDb::class.java, "nw.db").addMigrations(MIGRATION_1_2).fallbackToDestructiveMigration().build()
+        db = Room.databaseBuilder(a, AppDb::class.java, "nw.db").addMigrations(MIGRATION_1_2, MIGRATION_2_3).fallbackToDestructiveMigration().build()
         tg = Tg(a, scope)
         tmdb = TmdbClient(a)
         indexer = Indexer(tg, tmdb, db)
