@@ -16,7 +16,12 @@ data class Movie(
     val addedAt: Long = 0, val triedAt: Long = 0,
     val lastPlayedAt: Long = 0, val positionMs: Long = 0, val durationMs: Long = 0,
     val watchlist: Boolean = false, val favorite: Boolean = false, val watched: Boolean = false,
-    @ColumnInfo(defaultValue = "''") val caption: String = ""
+    @ColumnInfo(defaultValue = "''") val caption: String = "",
+    @ColumnInfo(defaultValue = "0") val season: Int = 0,
+    @ColumnInfo(defaultValue = "0") val episode: Int = 0,
+    @ColumnInfo(defaultValue = "0") val isSeries: Boolean = false,
+    @ColumnInfo(defaultValue = "0") val part: Int = 0,
+    @ColumnInfo(defaultValue = "0") val watchedMs: Long = 0
 ) {
     val matched: Boolean get() = tmdbId > 0
     val displayTitle: String get() = if (matched && title.isNotBlank()) title else parsedTitle.ifBlank { fileName }
@@ -53,6 +58,12 @@ interface MovieDao {
     @Query("UPDATE movies SET favorite = :v WHERE id = :id") suspend fun setFavorite(id: String, v: Boolean)
     @Query("UPDATE movies SET lastPlayedAt = 0, positionMs = 0 WHERE id = :id") suspend fun clearHistory(id: String)
     @Query("UPDATE movies SET lastPlayedAt = 0, positionMs = 0") suspend fun clearAllHistory()
+    @Query("SELECT * FROM movies") suspend fun allOnce(): List<Movie>
+    @Query("UPDATE movies SET watchedMs = watchedMs + :ms WHERE id = :id") suspend fun addWatched(id: String, ms: Long)
+    @Query("UPDATE movies SET watched = 1, positionMs = 0, lastPlayedAt = CASE WHEN lastPlayedAt = 0 THEN :t ELSE lastPlayedAt END WHERE id IN (:ids)")
+    suspend fun markWatched(ids: List<String>, t: Long)
+    @Query("UPDATE movies SET watched = 0, positionMs = 0, lastPlayedAt = 0 WHERE id IN (:ids)") suspend fun markUnwatched(ids: List<String>)
+    @Query("UPDATE movies SET cast = :cast WHERE id = :id") suspend fun setCast(id: String, cast: String)
     @Query("UPDATE movies SET caption = :c WHERE id = :id AND caption = ''") suspend fun setCaption(id: String, c: String)
     @Query("UPDATE movies SET watchlist = :v WHERE id IN (:ids)") suspend fun setWatchlistMany(ids: List<String>, v: Boolean)
     @Query("UPDATE movies SET favorite = :v WHERE id IN (:ids)") suspend fun setFavoriteMany(ids: List<String>, v: Boolean)
@@ -72,7 +83,7 @@ interface DownloadDao {
     @Query("UPDATE downloads SET done = :done, total = :total WHERE id = :id") suspend fun setProgress(id: String, done: Long, total: Long)
 }
 
-@Database(entities = [Movie::class, DownloadItem::class], version = 2, exportSchema = false)
+@Database(entities = [Movie::class, DownloadItem::class], version = 3, exportSchema = false)
 abstract class AppDb : RoomDatabase() {
     abstract fun movies(): MovieDao
     abstract fun downloads(): DownloadDao
