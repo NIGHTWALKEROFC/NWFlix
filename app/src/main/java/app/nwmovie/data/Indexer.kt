@@ -71,14 +71,15 @@ class Indexer(private val tg: Tg, private val tmdb: TmdbClient, private val db: 
         return Movie(
             id = "${r.chatId}_${r.messageId}", chatId = r.chatId, messageId = r.messageId, fileId = r.fileId,
             fileName = r.name, size = r.size, durationSec = r.durationSec, mime = r.mime,
-            parsedTitle = p.title, parsedYear = p.year, addedAt = r.dateSec * 1000L, caption = r.caption.take(500)
+            parsedTitle = p.title, parsedYear = p.year, addedAt = r.dateSec * 1000L, caption = r.caption.take(500),
+            season = p.season, episode = p.episode, isSeries = p.isSeries, part = p.part
         )
     }
 
     private suspend fun matchOne(m: Movie) {
-        val hit = TmdbClient.pickBest(m.parsedTitle, m.parsedYear, tmdb.search(m.parsedTitle, m.parsedYear))
+        val hit = TmdbClient.pickBest(m.parsedTitle, m.parsedYear, tmdb.search(m.parsedTitle, m.parsedYear, m.isSeries))
         if (hit == null) { db.movies().update(m.copy(triedAt = System.currentTimeMillis())); return }
-        applyDetail(m, tmdb.details(hit.id))
+        applyDetail(m, tmdb.details(hit.id, m.isSeries))
     }
 
     private suspend fun applyDetail(m: Movie, d: TmdbClient.Detail) {
@@ -92,8 +93,26 @@ class Indexer(private val tg: Tg, private val tmdb: TmdbClient, private val db: 
     }
 
     /** Used when the user fixes a wrong match by hand. */
-    suspend fun applyMatch(m: Movie, tmdbId: Int) = applyDetail(db.movies().get(m.id) ?: m, tmdb.details(tmdbId))
+    suspend fun applyMatch(m: Movie, tmdbId: Int) = applyDetail(db.movies().get(m.id) ?: m, tmdb.details(tmdbId, m.isSeries))
 
     /** Loads cast etc. for a movie that has no details yet. */
-    suspend fun refreshDetails(m: Movie) { if (m.tmdbId > 0) applyDetail(db.movies().get(m.id) ?: m, tmdb.details(m.tmdbId)) }
+    suspend fun refreshDetails(m: Movie) { if (m.tmdbId > 0) applyDetail(db.movies().get(m.id) ?: m, tmdb.details(m.tmdbId, m.isSeries)) }
+
+    /** One-time: add directors/creators to the saved cast of movies loaded before this version (details are cached, so this is light). */
+    suspend fun backfillDirectors() {
+        val rows = db.movies().allOnce().filter { it.tmdbId > 0 }
+        val sem = Semaphore(4)
+        coroutineScope {
+            rows.groupBy { it.isSeries to it.tmdbId }.map { (k, list) ->
+                async {
+                    sem.withPermit {
+                        try {
+                            val d = tmdb.details(k.second, k.first)
+                            list.forEach { db.movies().setCast(it.id, d.cast) }
+                        } catch (_: Exception) { }
+                    }
+                }
+            }.awaitAll()
+        }
+    }
 }
