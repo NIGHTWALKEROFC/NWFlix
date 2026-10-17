@@ -26,6 +26,7 @@ import app.nwmovie.BuildConfig
 import app.nwmovie.MainViewModel
 import app.nwmovie.data.CacheManager
 import app.nwmovie.data.K
+import app.nwmovie.data.MovieGroup
 import app.nwmovie.data.Secrets
 import app.nwmovie.ui.components.StorageBar
 import app.nwmovie.ui.theme.Accents
@@ -44,6 +45,7 @@ fun SettingsScreen(vm: MainViewModel, onPage: (String) -> Unit) {
         Triple(Icons.Default.PlayCircle, "Player Settings", "player"),
         Triple(Icons.Default.Wifi, "Network & Download", "network"),
         Triple(Icons.Default.Storage, "Storage & Cache", "storage"),
+        Triple(Icons.Default.BarChart, "Watch statistics", "stats"),
         Triple(Icons.Default.HelpOutline, "Help & Support", "help")
     )
     Column(Modifier.fillMaxSize().statusBarsPadding().verticalScroll(rememberScrollState())) {
@@ -198,6 +200,8 @@ fun SettingsPages(vm: MainViewModel, name: String, onBack: () -> Unit) {
             if (clearData) Confirm("Delete all local data?", "Index, caches and downloaded movies will be removed.", "Delete", { vm.clearLocalData() }, { clearData = false })
         }
 
+        "stats" -> Page("Watch statistics", onBack) { StatsContent(vm) }
+
         "appearance" -> Page("Appearance", onBack) {
             Group("Theme")
             ChoiceRow("Theme", p.theme, listOf("dark" to "Midnight (navy)", "amoled" to "AMOLED black", "light" to "Light")) { vm.set(K.theme, it) }
@@ -253,6 +257,13 @@ fun SettingsPages(vm: MainViewModel, name: String, onBack: () -> Unit) {
             if (askSaver) Confirm("Turn on Data saver?",
                 "This reduces data usage but lowers quality. Pictures get smaller, the smallest file is chosen when a movie has several versions, and a slow connection may buffer more often.",
                 "Turn on", { vm.set(K.bandwidthSaver, true) }, { askSaver = false })
+            Group("Smart quality")
+            SwitchRow("Smart file choice", "When a movie has several files: best quality on Wi-Fi, smallest file on mobile data (without turning on Data saver).", p.smartQuality) { vm.set(K.smartQuality, it) }
+            Group("Download schedule")
+            SwitchRow("Only while charging", "Downloads wait until the phone is charging", p.dlOnlyCharging) { vm.set(K.dlOnlyCharging, it) }
+            SwitchRow("Only at night (11 PM to 7 AM)", "Downloads wait for night time. They continue while the app is open.", p.dlOnlyNight) { vm.set(K.dlOnlyNight, it) }
+            Text("Wi-Fi only for downloads is in the next section. All rules apply together.", style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 16.dp))
             Group("Mobile data")
             SwitchRow("Allow mobile data", "Off = NWMovie only uses Wi-Fi for everything", p.mobileData) { vm.set(K.mobileData, it) }
             SwitchRow("Wi-Fi only for streaming", null, p.wifiOnlyStream) { vm.set(K.wifiOnlyStream, it) }
@@ -278,7 +289,12 @@ fun SettingsPages(vm: MainViewModel, name: String, onBack: () -> Unit) {
             Group("Limits & automatic cleanup")
             ChoiceRow("Poster cache limit (applies next start)", p.posterCacheMb, listOf(100, 200, 300, 500, 1000).map { it to "$it MB" }) { vm.set(K.posterCacheMb, it) }
             ChoiceRow("Temporary files limit", p.tempCacheMb, listOf(512, 1024, 2048, 4096, 8192).map { it to fmtSize(it * 1024L * 1024L) }) { vm.set(K.tempCacheMb, it) }
-            SwitchRow("Automatic cleanup", "Clears cached data after 3 days of inactivity", p.autoClean) { vm.set(K.autoClean, it) }
+            SwitchRow("Automatic cleanup", "Clears cached data after ${p.cacheDays} day(s) without opening the app", p.autoClean) { vm.set(K.autoClean, it) }
+            ChoiceRow("Keep cache for", p.cacheDays, listOf(1, 3, 7, 15, 30).map { it to (if (it == 1) "1 day" else "$it days") }) { vm.set(K.cacheDays, it) }
+            ChoiceRow("Clear movie data after watching", p.clearAfterWatch,
+                listOf("auto" to "Only when storage is low (under 5 GB)", "always" to "Always", "never" to "Never")) { vm.set(K.clearAfterWatch, it) }
+            if (CacheManager.isLowStorage(ctx)) Text("Your phone is low on storage (${fmtSize(CacheManager.freeBytes(ctx))} free).", color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
             Group("Total")
             Column(Modifier.padding(16.dp)) {
                 Text("Caches: ${fmtSize(usage.cacheTotal)}   •   Downloads: ${fmtSize(usage.downloads)}", style = MaterialTheme.typography.bodyMedium)
@@ -288,6 +304,11 @@ fun SettingsPages(vm: MainViewModel, name: String, onBack: () -> Unit) {
         }
 
         else -> Page("Help & Support", onBack) {
+            var guide by remember { mutableStateOf(false) }
+            if (guide) OtpGuideDialog(p.uiLang, { vm.set(K.uiLang, it) }) { guide = false }
+            Group("Login")
+            ActionRow("Login code not coming?", "Step-by-step guide in English and മലയാളം", Icons.Default.HelpOutline) { guide = true }
+            ActionRow("Open Telegram", "See your login code in the Telegram app", Icons.Default.Send) { if (!openTelegram(ctx)) vm.say("Telegram is not installed") }
             Group("How it works")
             ActionRow("Where do my movies come from?", "NWMovie scans the Telegram chats and channels you already have access to and keeps only long videos and large video files.") {}
             ActionRow("A movie has the wrong poster", "Open it → “Wrong or missing match?” → search and pick the correct movie.") {}
@@ -306,5 +327,62 @@ private fun CacheRow(title: String, bytes: Long, note: String? = null, onClear: 
             Text(fmtSize(bytes) + if (note != null) "  •  $note" else "", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         OutlinedButton(onClick = onClear, border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)) { Text("Clear") }
+    }
+}
+
+// ---------------------------------------------------------------- statistics
+
+private class WatchStats(val total: Long, val genres: List<Pair<String, Long>>, val top: List<Pair<MovieGroup, Long>>, val movies: Int, val episodes: Int)
+
+private fun fmtHours(ms: Long): String { val h = ms / 3_600_000; val m = (ms % 3_600_000) / 60_000; return if (h > 0) "${h}h ${m}m" else "${m}m" }
+
+@Composable
+private fun ColumnScope.StatsContent(vm: MainViewModel) {
+    val movies by vm.movies.collectAsState()
+    val groups by vm.groups.collectAsState()
+    val st = remember(movies, groups) {
+        val genres = HashMap<String, Long>()
+        movies.forEach { m -> if (m.watchedMs > 0) m.genreList.forEach { g -> genres[g] = (genres[g] ?: 0L) + m.watchedMs } }
+        WatchStats(
+            movies.sumOf { it.watchedMs },
+            genres.entries.sortedByDescending { it.value }.take(6).map { it.key to it.value },
+            groups.map { g -> g to g.files.sumOf { it.watchedMs } }.filter { it.second > 0 }.sortedByDescending { it.second }.take(5),
+            groups.count { !it.isSeries && it.files.any { f -> f.watched } },
+            movies.count { it.isSeries && it.watched }
+        )
+    }
+    Column(Modifier.padding(16.dp)) {
+        Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.primary.copy(alpha = 0.18f), modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(20.dp)) {
+                Text("Total watch time", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(fmtHours(st.total), style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.primary)
+                Text("${st.movies} movies finished  •  ${st.episodes} episodes finished", style = MaterialTheme.typography.bodyMedium)
+            }
+        }
+        if (st.total == 0L) Text("Nothing yet. Watch time is counted from the moment this version is installed.", style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 12.dp))
+        if (st.genres.isNotEmpty()) {
+            Text("Favourite genres", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 24.dp, bottom = 8.dp))
+            val max = st.genres.first().second.toFloat()
+            st.genres.forEach { (g, ms) ->
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 5.dp)) {
+                    Text(g, Modifier.width(110.dp), style = MaterialTheme.typography.bodyMedium)
+                    Box(Modifier.weight(1f).height(10.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant)) {
+                        Box(Modifier.fillMaxWidth(ms / max).fillMaxHeight().clip(CircleShape).background(MaterialTheme.colorScheme.primary))
+                    }
+                    Text(fmtHours(ms), Modifier.width(64.dp), style = MaterialTheme.typography.bodySmall, textAlign = androidx.compose.ui.text.style.TextAlign.End)
+                }
+            }
+        }
+        if (st.top.isNotEmpty()) {
+            Text("Most watched", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 24.dp, bottom = 8.dp))
+            st.top.forEachIndexed { i, (g, ms) ->
+                Row(Modifier.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("${i + 1}", Modifier.width(28.dp), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.titleMedium)
+                    Text(g.view.displayTitle, Modifier.weight(1f), maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                    Text(fmtHours(ms), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
     }
 }
