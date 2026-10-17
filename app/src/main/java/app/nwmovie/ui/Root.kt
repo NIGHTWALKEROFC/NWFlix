@@ -47,6 +47,7 @@ fun NWRoot(vm: MainViewModel) {
     val route = entry?.destination?.route
     val snack = remember { SnackbarHostState() }
     val isMain = route in tabs.map { it.route }
+    val prefs by vm.prefs.collectAsState()
 
     LaunchedEffect(Unit) { vm.toast.collect { snack.showSnackbar(it) } }
 
@@ -55,7 +56,7 @@ fun NWRoot(vm: MainViewModel) {
         if (route != null && route != "splash" && route != "login" &&
             auth !is Tg.Auth.Ready && auth !is Tg.Auth.Loading
         ) nav.navigate("login") { popUpTo(0) }
-        if (route == "login" && auth is Tg.Auth.Ready) nav.navigate("home") { popUpTo(0) }
+        if (route == "login" && auth is Tg.Auth.Ready) nav.navigate(if (prefs.onboarded) "home" else "setup") { popUpTo(0) }
     }
 
     Scaffold(
@@ -89,10 +90,12 @@ fun NWRoot(vm: MainViewModel) {
                 SplashScreen {
                     // wait for Telegram to report its state, then go
                     val a = vm.auth.first { it !is Tg.Auth.Loading }
-                    nav.navigate(if (a is Tg.Auth.Ready) "home" else "login") { popUpTo("splash") { inclusive = true } }
+                    val next = if (a !is Tg.Auth.Ready) "login" else if (vm.prefs.value.onboarded) "home" else "setup"
+                    nav.navigate(next) { popUpTo("splash") { inclusive = true } }
                 }
             }
             composable("login") { LoginScreen(vm) }
+            composable("setup") { SetupScreen(vm, onDone = { nav.navigate("home") { popUpTo(0) } }) }
             composable("home") {
                 HomeScreen(vm, onOpen = { nav.navigate("detail/$it") },
                     onSearch = { vm.searchOpen.value = true; nav.navigate("explore") },
