@@ -54,6 +54,7 @@ fun HomeScreen(
     val topRated = remember(matched) { matched.filter { it.view.rating > 0 }.sortedByOption(SortOption.RATING_HIGH).take(60) }
     val newest = remember(matched) { matched.sortedByOption(SortOption.NEWEST).take(60) }
     val recent = remember(groups) { groups.sortedByOption(SortOption.ADDED) }        // every movie, newest first
+    val series = remember(groups) { groups.filter { it.isSeries }.sortedByOption(SortOption.ADDED) }
     val unmatched = remember(groups) { groups.filter { !it.view.matched } }
 
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
@@ -101,6 +102,7 @@ fun HomeScreen(
             if (trending.isNotEmpty()) item { PosterRow(trending, "Trending Now", prefs.showTitles, { onSeeAll(SortOption.POPULAR) }, onOpen) }
             if (topRated.isNotEmpty()) item { PosterRow(topRated, "Top Rated", prefs.showTitles, { onSeeAll(SortOption.RATING_HIGH) }, onOpen) }
             if (newest.isNotEmpty()) item { PosterRow(newest, "New Releases", prefs.showTitles, { onSeeAll(SortOption.NEWEST) }, onOpen) }
+            if (series.isNotEmpty()) item { PosterRow(series, "TV Series", prefs.showTitles, null, onOpen) }
             item { PosterRow(recent, "Recently Added (${recent.size})", prefs.showTitles, { onSeeAll(SortOption.ADDED) }, onOpen) }
             if (unmatched.isNotEmpty()) item { PosterRow(unmatched, "Needs a match (${unmatched.size})", true, null, onOpen) }
         }
@@ -113,7 +115,7 @@ private fun PosterRow(list: List<MovieGroup>, title: String, showTitles: Boolean
         SectionHeader(title, action = if (onSeeAll != null) "See all" else null, onAction = { onSeeAll?.invoke() })
         LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             items(list, key = { it.id }) { g ->
-                Poster(g.view, Modifier.width(112.dp), showTitles, if (g.fileCount > 1) "${g.fileCount} files" else null) { onOpen(g.id) }
+                Poster(g.view, Modifier.width(112.dp), showTitles, g.badge) { onOpen(g.id) }
             }
         }
     }
