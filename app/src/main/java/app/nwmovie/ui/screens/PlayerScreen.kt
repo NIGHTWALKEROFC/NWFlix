@@ -6,6 +6,7 @@ import android.media.AudioManager
 import android.media.audiofx.LoudnessEnhancer
 import android.provider.Settings
 import android.util.TypedValue
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.OptIn
@@ -16,6 +17,7 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -53,7 +55,10 @@ import app.nwmovie.AppState
 import app.nwmovie.MainActivity
 import app.nwmovie.MainViewModel
 import app.nwmovie.ServiceLocator
+import app.nwmovie.data.CacheManager
 import app.nwmovie.data.K
+import app.nwmovie.data.groupKey
+import app.nwmovie.data.partKey
 import app.nwmovie.data.NetPolicy
 import app.nwmovie.data.db.Movie
 import app.nwmovie.player.PlayerManager
@@ -137,6 +142,11 @@ fun PlayerScreen(vm: MainViewModel, id: String, onBack: () -> Unit, onNext: (Str
     var scrub by remember { mutableStateOf<Float?>(null) }
     var pendingSeek by remember { mutableLongStateOf(-1L) }
 
+    var parts by remember { mutableStateOf<List<Movie>>(emptyList()) }     // several files = parts of one movie, played in a row
+    var curIdx by remember { mutableIntStateOf(0) }
+    val playedFileIds = remember { mutableListOf<Int>() }
+    var locked by remember { mutableStateOf(false) }                        // touch lock
+    fun cid(): String = parts.getOrNull(curIdx)?.id ?: id
     var abA by remember { mutableLongStateOf(-1L) }
     var abB by remember { mutableLongStateOf(-1L) }
     var sleepAt by remember { mutableLongStateOf(0L) }          // 0 off, -1 end of movie, else epoch ms
@@ -153,21 +163,36 @@ fun PlayerScreen(vm: MainViewModel, id: String, onBack: () -> Unit, onNext: (Str
         val m = ServiceLocator.db.movies().get(id)
         if (m == null) { error = "Movie not found."; loadingText = null; return@LaunchedEffect }
         movie = m
-        val local = ServiceLocator.downloads.localPath(id)
-        var fileId: Int? = null
-        if (local == null) {
-            val block = NetPolicy.streamBlock(p)
-            if (block != null) { error = block; loadingText = null; return@LaunchedEffect }
-            val f = ServiceLocator.tg.refreshFile(m)
-            if (f == null) {
-                error = "This file is no longer available in Telegram. It may have been deleted, or you lost access to the chat."
-                loadingText = null; return@LaunchedEffect
+        // Parts of one multi-part movie (CD1/CD2, Part 1/Part 2) are played one after another.
+        val pk = partKey(m)
+        val list = if (pk != null) {
+            val sib = ServiceLocator.db.movies().allOnce().filter { it.groupKey() == m.groupKey() && partKey(it) == pk }.sortedBy { it.part }
+            if (sib.size >= 2 && sib.map { it.part }.distinct().size >= 2) sib else listOf(m)
+        } else listOf(m)
+        parts = list
+        val items = mutableListOf<PlayerManager.PlayItem>()
+        for (f in list) {
+            val local = ServiceLocator.downloads.localPath(f.id)
+            var fileId: Int? = null
+            if (local == null) {
+                val block = NetPolicy.streamBlock(p)
+                if (block != null) { error = block; loadingText = null; return@LaunchedEffect }
+                val tf = ServiceLocator.tg.refreshFile(f)
+                if (tf == null) {
+                    error = "This file is no longer available in Telegram. It may have been deleted, or you lost access to the chat."
+                    loadingText = null; return@LaunchedEffect
+                }
+                fileId = tf.id
+                playedFileIds.add(tf.id)
+                if (tf.id != f.fileId) ServiceLocator.db.movies().setFileId(f.id, tf.id)
             }
-            fileId = f.id
-            if (f.id != m.fileId) ServiceLocator.db.movies().setFileId(m.id, f.id)
+            items += PlayerManager.PlayItem(f, local, fileId)
         }
-        val start = if (p.resume && m.positionMs > 5000 && m.durationMs > 0 && m.positionMs < m.durationMs * 0.95) m.positionMs else 0L
-        PlayerManager.open(m, start, local, fileId)
+        val startIdx = list.indexOfFirst { it.id == id }.coerceAtLeast(0)
+        val cur = list[startIdx]
+        val start = if (p.resume && cur.positionMs > 5000 && cur.durationMs > 0 && cur.positionMs < cur.durationMs * 0.95) cur.positionMs else 0L
+        curIdx = startIdx
+        PlayerManager.openAll(items, startIdx, start)
         loadingText = null
     }
 
@@ -206,15 +231,20 @@ fun PlayerScreen(vm: MainViewModel, id: String, onBack: () -> Unit, onNext: (Str
                 buffering = state == Player.STATE_BUFFERING
                 if (state == Player.STATE_ENDED) {
                     val d = player.duration.takeIf { it > 0 } ?: 0L
-                    vm.saveProgress(id, d, d)
+                    vm.saveProgress(cid(), d, d)
                     if (sleepAt == -1L) { sleepAt = 0; vm.say("Sleep timer: stopped at the end"); return }
-                    if (ServiceLocator.prefs.value.autoNext) vm.nextAfter(id)?.let { onNext(it) }
+                    if (ServiceLocator.prefs.value.autoNext) vm.nextAfter(cid())?.let { onNext(it) }
                 }
             }
             override fun onAudioSessionIdChanged(audioSessionId: Int) {
                 enhancer[0]?.release()
                 enhancer[0] = if (audioSessionId == C.AUDIO_SESSION_ID_UNSET) null else try { LoudnessEnhancer(audioSessionId) } catch (e: Exception) { null }
                 applyVolume(volPct)
+            }
+            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                val prev = curIdx
+                curIdx = player.currentMediaItemIndex
+                if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO) parts.getOrNull(prev)?.let { vm.saveProgress(it.id, 1, 1) }   // finished part counts as watched
             }
             override fun onTracksChanged(t: Tracks) { tracks = t }
             override fun onVideoSizeChanged(v: VideoSize) { vsize = v }
@@ -233,7 +263,13 @@ fun PlayerScreen(vm: MainViewModel, id: String, onBack: () -> Unit, onNext: (Str
             delay(200)
         }
     }
-    LaunchedEffect(player) { while (true) { delay(5000); if (dur > 0 && pos > 0) vm.saveProgress(id, pos, dur) } }
+    LaunchedEffect(player) {
+        while (true) {
+            delay(5000)
+            if (dur > 0 && pos > 0) vm.saveProgress(cid(), pos, dur)
+            if (isPlaying) vm.addWatch(cid(), 5000)
+        }
+    }
 
     // ---------- sleep timer ----------
     LaunchedEffect(sleepAt) {
@@ -273,8 +309,14 @@ fun PlayerScreen(vm: MainViewModel, id: String, onBack: () -> Unit, onNext: (Str
         onDispose {
             AppState.playerOpen = false; AppState.playerPlaying = false
             val d = player.duration
-            if (d > 0) vm.saveProgress(id, player.currentPosition, d)
+            if (d > 0) vm.saveProgress(cid(), player.currentPosition, d)
             PlayerManager.releaseIfCurrent(player)
+            // Low on storage (under 5 GB) or "always": remove the streamed movie data as soon as the user leaves the player.
+            val mode = ServiceLocator.prefs.value.clearAfterWatch
+            if (mode == "always" || (mode == "auto" && CacheManager.isLowStorage(ctx))) {
+                val ids = playedFileIds.toList()
+                ServiceLocator.scope.launch { delay(1500); ids.forEach { if (!ServiceLocator.tg.isPinned(it)) ServiceLocator.tg.deleteFile(it) } }
+            }
             ctrl?.show(WindowInsetsCompat.Type.systemBars())
             activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
             if (window != null) {
@@ -365,8 +407,18 @@ fun PlayerScreen(vm: MainViewModel, id: String, onBack: () -> Unit, onNext: (Str
         // ---------- gestures ----------
         Box(
             Modifier.fillMaxSize()
-                .pointerInput(prefs.doubleTapSec) {
-                    detectTapGestures(
+                .pointerInput(prefs.doubleTapSec, locked) {
+                    if (locked) {
+                        detectTapGestures(onTap = { show = !show; touchTick++ })       // locked: a tap only shows the unlock button
+                    } else detectTapGestures(
+                        onPress = {
+                            // Long-press = 2x speed while the finger is down
+                            var boost = false
+                            val job = scope.launch { delay(450); boost = true; player.setPlaybackSpeed(2f); hud = "2× speed" }
+                            tryAwaitRelease()
+                            job.cancel()
+                            if (boost) { player.setPlaybackSpeed(speed); hud = null }
+                        },
                         onTap = { show = !show; touchTick++ },
                         onDoubleTap = { o ->
                             val s = prefs.doubleTapSec * 1000L
@@ -374,8 +426,8 @@ fun PlayerScreen(vm: MainViewModel, id: String, onBack: () -> Unit, onNext: (Str
                         }
                     )
                 }
-                .pointerInput(prefs.gestures, prefs.brightnessGesture, prefs.volumeGesture, prefs.seekGesture) {
-                    if (!prefs.gestures) return@pointerInput
+                .pointerInput(prefs.gestures, prefs.brightnessGesture, prefs.volumeGesture, prefs.seekGesture, locked) {
+                    if (!prefs.gestures || locked) return@pointerInput
                     var mode = 0; var left = true; var acc = 0f; var startPos = 0L
                     detectDragGestures(
                         onDragStart = { o -> mode = 0; left = o.x < size.width / 2f; acc = 0f; startPos = player.currentPosition; pendingSeek = -1 },
@@ -446,20 +498,26 @@ fun PlayerScreen(vm: MainViewModel, id: String, onBack: () -> Unit, onNext: (Str
         }
 
         // ---------- controls ----------
-        if (!pip && error == null) AnimatedVisibility(show, Modifier.fillMaxSize()) {
+        BackHandler(enabled = locked) { show = true }
+        if (locked && show && !pip && error == null) IconButton(
+            onClick = { locked = false; hud = "Controls unlocked" },
+            modifier = Modifier.align(Alignment.CenterStart).padding(24.dp).background(Color.Black.copy(alpha = 0.55f), CircleShape)
+        ) { Icon(Icons.Default.Lock, "Unlock controls", tint = Color.White) }
+        if (!pip && error == null) AnimatedVisibility(show && !locked, Modifier.fillMaxSize()) {
             Box(Modifier.fillMaxSize()) {
                 Box(Modifier.align(Alignment.TopCenter).fillMaxWidth().height(110.dp).background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.7f), Color.Transparent))))
                 Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(170.dp).background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.8f)))))
 
                 Row(Modifier.align(Alignment.TopCenter).fillMaxWidth().statusBarsPadding().padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color.White) }
-                    Text(if (prefs.hideNotif) "" else (movie?.displayTitle ?: ""), color = Color.White, style = MaterialTheme.typography.titleMedium, maxLines = 1, modifier = Modifier.weight(1f))
+                    Text(if (prefs.hideNotif) "" else playerTitle(parts.getOrNull(curIdx) ?: movie, parts.size, curIdx), color = Color.White, style = MaterialTheme.typography.titleMedium, maxLines = 1, modifier = Modifier.weight(1f))
                     IconButton(onClick = {
                         if (prefs.bandwidthSaver) { vm.set(K.bandwidthSaver, false); hud = "Data saver off" } else askSaver = true
                     }) {
                         Icon(if (prefs.bandwidthSaver) Icons.Default.DataSaverOn else Icons.Default.DataSaverOff, "Data saver",
                             tint = if (prefs.bandwidthSaver) Color(0xFF7CE0A5) else Color.White)
                     }
+                    IconButton(onClick = { locked = true; show = false; hud = "Controls locked. Tap the screen to show the unlock button." }) { Icon(Icons.Default.LockOpen, "Lock controls", tint = Color.White) }
                     IconButton(onClick = { (activity as? MainActivity)?.enterPip() }) { Icon(Icons.Default.PictureInPictureAlt, "Picture in picture", tint = Color.White) }
                     IconButton(onClick = {
                         activity?.requestedOrientation = if (config.orientation == Configuration.ORIENTATION_LANDSCAPE)
@@ -577,6 +635,14 @@ fun PlayerScreen(vm: MainViewModel, id: String, onBack: () -> Unit, onNext: (Str
 }
 
 private const val WindowManagerBrightnessNone = -1f
+
+private fun playerTitle(m: Movie?, parts: Int, idx: Int): String {
+    if (m == null) return ""
+    var t = m.displayTitle
+    if (m.isSeries) t += "  S%02dE%02d".format(m.season, m.episode)
+    if (parts > 1) t += "  (Part ${idx + 1}/$parts)"
+    return t
+}
 
 // Tap the aspect button to jump to the next mode (like MX Player / VLC); the icon and label change with it.
 private val aspectModes = listOf("fit", "fill", "crop", "16:9", "4:3")
