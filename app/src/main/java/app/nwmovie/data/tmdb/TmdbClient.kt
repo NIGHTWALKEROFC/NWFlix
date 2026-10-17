@@ -60,14 +60,14 @@ class TmdbClient(ctx: Context) {
 
     private fun year(date: String?): Int = date?.take(4)?.toIntOrNull() ?: 0
 
-    suspend fun search(title: String, year: Int): List<Hit> {
+    suspend fun search(title: String, year: Int, tv: Boolean = false): List<Hit> {
         suspend fun run(y: Int): List<Hit> {
             val params = mutableMapOf("query" to title, "include_adult" to "false")
-            if (y > 0) params["year"] = y.toString()
-            val arr = get("/search/movie", params).optJSONArray("results") ?: JSONArray()
+            if (y > 0) params[if (tv) "first_air_date_year" else "year"] = y.toString()
+            val arr = get(if (tv) "/search/tv" else "/search/movie", params).optJSONArray("results") ?: JSONArray()
             return (0 until minOf(arr.length(), 10)).map { i ->
                 val o = arr.getJSONObject(i)
-                Hit(o.getInt("id"), o.optString("title"), year(o.optString("release_date")),
+                Hit(o.getInt("id"), o.optString(if (tv) "name" else "title"), year(o.optString(if (tv) "first_air_date" else "release_date")),
                     o.optString("poster_path").takeIf { it != "null" } ?: "", o.optDouble("popularity", 0.0), o.optString("overview"))
             }
         }
@@ -75,21 +75,41 @@ class TmdbClient(ctx: Context) {
         return if (first.isEmpty() && year > 0) run(0) else first
     }
 
-    suspend fun details(id: Int): Detail {
-        val o = get("/movie/$id", mapOf("append_to_response" to "credits"))
+    suspend fun details(id: Int, tv: Boolean = false): Detail {
+        val o = get(if (tv) "/tv/$id" else "/movie/$id", mapOf("append_to_response" to "credits"))
         val genres = o.optJSONArray("genres")?.let { g -> (0 until g.length()).joinToString(",") { g.getJSONObject(it).optString("name") } } ?: ""
-        val castArr = o.optJSONObject("credits")?.optJSONArray("cast") ?: JSONArray()
+        val credits = o.optJSONObject("credits")
+        val castArr = credits?.optJSONArray("cast") ?: JSONArray()
         val cast = JSONArray()
+        // directors / creators first, so "search by director" works with the same saved data
+        if (tv) {
+            o.optJSONArray("created_by")?.let { c -> for (i in 0 until minOf(c.length(), 2)) {
+                val x = c.getJSONObject(i)
+                cast.put(JSONObject().put("n", x.optString("name")).put("c", "Creator").put("p", x.optString("profile_path").takeIf { it != "null" } ?: ""))
+            } }
+        } else {
+            credits?.optJSONArray("crew")?.let { crew ->
+                var added = 0
+                for (i in 0 until crew.length()) {
+                    val x = crew.getJSONObject(i)
+                    if (x.optString("job") == "Director" && added < 2) {
+                        cast.put(JSONObject().put("n", x.optString("name")).put("c", "Director").put("p", x.optString("profile_path").takeIf { it != "null" } ?: ""))
+                        added++
+                    }
+                }
+            }
+        }
         for (i in 0 until minOf(castArr.length(), 14)) {
             val c = castArr.getJSONObject(i)
             cast.put(JSONObject().put("n", c.optString("name")).put("c", c.optString("character"))
                 .put("p", c.optString("profile_path").takeIf { it != "null" } ?: ""))
         }
+        val runtime = if (tv) (o.optJSONArray("episode_run_time")?.optInt(0, 0) ?: 0) else o.optInt("runtime", 0)
         return Detail(
-            id, o.optString("title"), year(o.optString("release_date")), o.optDouble("vote_average", 0.0),
-            o.optDouble("popularity", 0.0), genres, o.optString("overview"),
+            id, o.optString(if (tv) "name" else "title"), year(o.optString(if (tv) "first_air_date" else "release_date")),
+            o.optDouble("vote_average", 0.0), o.optDouble("popularity", 0.0), genres, o.optString("overview"),
             o.optString("poster_path").takeIf { it != "null" } ?: "", o.optString("backdrop_path").takeIf { it != "null" } ?: "",
-            o.optInt("runtime", 0), cast.toString()
+            runtime, cast.toString()
         )
     }
 
