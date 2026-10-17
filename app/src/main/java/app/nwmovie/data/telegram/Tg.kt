@@ -147,6 +147,8 @@ class Tg(private val app: Application, private val scope: CoroutineScope) {
     suspend fun submitPhone(phone: String) = authCall(TdApi.SetAuthenticationPhoneNumber(phone.trim(), null))
     suspend fun submitCode(code: String) = authCall(TdApi.CheckAuthenticationCode(code.trim()))
     suspend fun submitPassword(pw: String) = authCall(TdApi.CheckAuthenticationPassword(pw))
+    /** Asks Telegram to send the code another way (SMS or phone call) when it is available. */
+    suspend fun resendCode() = authCall(TdApi.ResendAuthenticationCode())
 
     suspend fun logoutAndWipe() {
         wipeOnClose = true
@@ -163,6 +165,7 @@ class Tg(private val app: Application, private val scope: CoroutineScope) {
         m.contains("PHONE_CODE_INVALID") || m.contains("PHONE_CODE_EMPTY") -> "That code is wrong. Check the latest code in your Telegram app."
         m.contains("PHONE_CODE_EXPIRED") -> "That code expired. Go back and request a new one."
         m.contains("PASSWORD_HASH_INVALID") -> "Wrong two-step verification password."
+        m.contains("resend") || m.contains("RESEND") -> "Telegram can't send the code another way yet. Wait a minute and try again."
         m.contains("FLOOD") || m.contains("Too Many Requests") -> "Too many attempts. Wait a few minutes and try again."
         m.contains("API_ID") -> "Telegram rejected the api_id / api_hash. Re-check them at my.telegram.org."
         else -> m.ifBlank { "Something went wrong talking to Telegram." }
