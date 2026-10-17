@@ -6,6 +6,8 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import app.nwmovie.data.K
 import app.nwmovie.data.MovieGroup
+import app.nwmovie.data.NetPolicy
+import app.nwmovie.data.qualityOf
 import app.nwmovie.data.SortOption
 import app.nwmovie.data.db.DownloadItem
 import app.nwmovie.data.db.Movie
@@ -50,6 +52,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     val first = !prefs.value.capBackfill      // one deep scan after this update to read file captions
                     rescan(first)
                     if (first) sl.settings.set(K.capBackfill, true)
+                    if (!prefs.value.dirBackfill) {                // one time: add directors to older saved details
+                        sl.settings.set(K.dirBackfill, true)
+                        try { sl.indexer.backfillDirectors() } catch (_: Exception) { }
+                    }
                 }
             }
         }
@@ -65,6 +71,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun submitPhone(p: String) = login { sl.tg.submitPhone(p) }
     fun submitCode(c: String) = login { sl.tg.submitCode(c) }
     fun submitPassword(p: String) = login { sl.tg.submitPassword(p) }
+    fun resendCode() = login { sl.tg.resendCode() }
     fun logout() { viewModelScope.launch { sl.tg.logoutAndWipe(); sl.wipeLocalData() } }
     fun clearLocalData() { viewModelScope.launch { sl.wipeLocalData(); say("Local data cleared"); rescan(true) } }
 
@@ -93,7 +100,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun clearAllHistory() { viewModelScope.launch { sl.db.movies().clearAllHistory(); say("Viewing history cleared") } }
     fun loadDetails(m: Movie) { viewModelScope.launch { try { sl.indexer.refreshDetails(m) } catch (_: Exception) { } } }
 
-    suspend fun searchTmdb(q: String, year: Int): List<TmdbClient.Hit> = try { sl.tmdb.search(q, year) } catch (e: Exception) { emptyList() }
+    suspend fun searchTmdb(q: String, year: Int, tv: Boolean = false): List<TmdbClient.Hit> = try { sl.tmdb.search(q, year, tv) } catch (e: Exception) { emptyList() }
     fun applyMatch(m: Movie, tmdbId: Int) {
         val ids = idsOf(m.id)
         viewModelScope.launch {
@@ -104,13 +111,40 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    fun setWatched(ids: List<String>, watched: Boolean) {
+        viewModelScope.launch {
+            if (watched) sl.db.movies().markWatched(ids, System.currentTimeMillis()) else sl.db.movies().markUnwatched(ids)
+            say(if (watched) "Marked as watched" else "Marked as not watched")
+        }
+    }
+
+    fun addWatch(id: String, ms: Long) { viewModelScope.launch { sl.db.movies().addWatched(id, ms) } }
+
+    /** Instant play: fetch the first few MB while the detail page is open (Wi-Fi only, never with Data saver). */
+    fun preload(f: Movie) {
+        viewModelScope.launch {
+            if (prefs.value.bandwidthSaver || NetPolicy.metered.value || NetPolicy.streamBlock(prefs.value) != null) return@launch
+            if (sl.downloads.localPath(f.id) != null) return@launch
+            try { val tf = sl.tg.refreshFile(f); sl.tg.startDownload(tf?.id ?: f.fileId, 0, 6L * 1024 * 1024, 8) } catch (_: Exception) { }
+        }
+    }
+
     fun saveProgress(id: String, pos: Long, dur: Long) {
         if (dur <= 0 || pos <= 0) return
         viewModelScope.launch { sl.db.movies().progress(id, pos, dur, System.currentTimeMillis(), pos > dur * 0.92) }
     }
 
-    /** "Auto-play next": the next unwatched movie in My List after the one that just finished. */
+    /** Auto-play next: the next episode of a series (same quality), or the next unwatched movie in My List. */
     fun nextAfter(id: String): String? {
+        val all = movies.value
+        val cur = all.firstOrNull { it.id == id } ?: return null
+        if (cur.isSeries) {
+            val g = MovieGroup(all.filter { it.groupKey() == cur.groupKey() })
+            val eps = g.episodesFor(qualityOf(cur))
+            val i = eps.indexOfFirst { it.id == cur.id }
+            if (i < 0) return null
+            return eps.drop(i + 1).firstOrNull { it.season != cur.season || it.episode != cur.episode }?.id
+        }
         val list = groups.value.filter { it.view.watchlist }.sortedBy { it.view.addedAt }
         val i = list.indexOfFirst { g -> g.files.any { it.id == id } }
         if (i < 0) return null
