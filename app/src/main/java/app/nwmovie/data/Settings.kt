@@ -28,7 +28,10 @@ data class Prefs(
     val theme: String = "dark", val accent: Int = 0, val fontScale: Float = 1f, val showTitles: Boolean = true,
     val fullscreen: Boolean = true,
     val savedBrightness: Float = -1f, val savedVolume: Int = -1,
-    val capBackfill: Boolean = false
+    val capBackfill: Boolean = false,
+    val smartQuality: Boolean = true, val dlOnlyCharging: Boolean = false, val dlOnlyNight: Boolean = false,
+    val clearAfterWatch: String = "auto", val cacheDays: Int = 3, val onboarded: Boolean = false,
+    val uiLang: String = "en", val dirBackfill: Boolean = false
 )
 
 object K {
@@ -55,6 +58,10 @@ object K {
     val fontScale = floatPreferencesKey("fontScale"); val showTitles = booleanPreferencesKey("showTitles")
     val fullscreen = booleanPreferencesKey("fullscreen"); val savedBrightness = floatPreferencesKey("savedBrightness")
     val capBackfill = booleanPreferencesKey("capBackfill")
+    val smartQuality = booleanPreferencesKey("smartQuality"); val dlOnlyCharging = booleanPreferencesKey("dlOnlyCharging")
+    val dlOnlyNight = booleanPreferencesKey("dlOnlyNight"); val clearAfterWatch = stringPreferencesKey("clearAfterWatch")
+    val cacheDays = intPreferencesKey("cacheDays"); val onboarded = booleanPreferencesKey("onboarded")
+    val uiLang = stringPreferencesKey("uiLang"); val dirBackfill = booleanPreferencesKey("dirBackfill")
 }
 
 class SettingsStore(ctx: Context) {
@@ -81,7 +88,11 @@ class SettingsStore(ctx: Context) {
             autoClean = p[K.autoClean] ?: d.autoClean, lastOpen = p[K.lastOpen] ?: d.lastOpen,
             theme = p[K.theme] ?: d.theme, accent = p[K.accent] ?: d.accent, fontScale = p[K.fontScale] ?: d.fontScale,
             showTitles = p[K.showTitles] ?: d.showTitles, fullscreen = p[K.fullscreen] ?: d.fullscreen,
-            savedBrightness = p[K.savedBrightness] ?: d.savedBrightness, savedVolume = p[K.savedVolume] ?: d.savedVolume, capBackfill = p[K.capBackfill] ?: d.capBackfill
+            savedBrightness = p[K.savedBrightness] ?: d.savedBrightness, savedVolume = p[K.savedVolume] ?: d.savedVolume, capBackfill = p[K.capBackfill] ?: d.capBackfill,
+            smartQuality = p[K.smartQuality] ?: d.smartQuality, dlOnlyCharging = p[K.dlOnlyCharging] ?: d.dlOnlyCharging,
+            dlOnlyNight = p[K.dlOnlyNight] ?: d.dlOnlyNight, clearAfterWatch = p[K.clearAfterWatch] ?: d.clearAfterWatch,
+            cacheDays = p[K.cacheDays] ?: d.cacheDays, onboarded = p[K.onboarded] ?: d.onboarded,
+            uiLang = p[K.uiLang] ?: d.uiLang, dirBackfill = p[K.dirBackfill] ?: d.dirBackfill
         )
     }
 
