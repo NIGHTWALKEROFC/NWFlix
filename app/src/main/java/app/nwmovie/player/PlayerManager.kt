@@ -84,17 +84,23 @@ object PlayerManager {
         return player
     }
 
-    fun open(m: Movie, startMs: Long, localPath: String?, fileId: Int?) {
+    class PlayItem(val movie: Movie, val localPath: String?, val fileId: Int?)
+
+    /** Plays one file, or several parts of a movie one after another. */
+    fun openAll(items: List<PlayItem>, startIndex: Int, startMs: Long) {
         val player = player()
         val hide = ServiceLocator.prefs.value.hideNotif
-        val meta = MediaMetadata.Builder().setTitle(if (hide) "NWMovie" else m.displayTitle).build()
-        val item = if (localPath != null) {
-            MediaItem.Builder().setUri(Uri.fromFile(File(localPath))).setMediaMetadata(meta).build()
-        } else {
-            MediaItem.Builder().setUri(Uri.parse("tg://file/$fileId")).setMediaMetadata(meta)
-                .setMimeType(guessMime(m)).build()
+        val list = items.map { it2 ->
+            val m = it2.movie
+            val meta = MediaMetadata.Builder().setTitle(if (hide) "NWMovie" else m.displayTitle).build()
+            if (it2.localPath != null) {
+                MediaItem.Builder().setMediaId(m.id).setUri(Uri.fromFile(File(it2.localPath))).setMediaMetadata(meta).build()
+            } else {
+                MediaItem.Builder().setMediaId(m.id).setUri(Uri.parse("tg://file/${it2.fileId}")).setMediaMetadata(meta)
+                    .setMimeType(guessMime(m)).build()
+            }
         }
-        player.setMediaItem(item, startMs)
+        player.setMediaItems(list, startIndex.coerceIn(0, list.lastIndex), startMs)
         player.prepare()
         player.playWhenReady = true
         connectService()
