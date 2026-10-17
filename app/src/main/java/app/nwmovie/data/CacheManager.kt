@@ -12,6 +12,12 @@ import java.io.File
  *  4. Temporary – TDLib streaming/partial files (noBackup/td/files)
  */
 object CacheManager {
+    /** Below this much free space the phone counts as "low on storage". */
+    const val LOW_STORAGE_BYTES = 5L * 1024 * 1024 * 1024
+
+    fun freeBytes(ctx: Context): Long = try { android.os.StatFs(ctx.filesDir.path).availableBytes } catch (e: Exception) { Long.MAX_VALUE }
+    fun isLowStorage(ctx: Context): Boolean = freeBytes(ctx) < LOW_STORAGE_BYTES
+
     data class Usage(val posters: Long, val metadata: Long, val index: Long, val temp: Long, val downloads: Long) {
         val cacheTotal get() = posters + metadata + index + temp
     }
@@ -50,7 +56,7 @@ object CacheManager {
     suspend fun autoClean(ctx: Context) {
         val p = ServiceLocator.prefs.value
         if (!p.autoClean) return
-        val threeDays = 3L * 86400_000
+        val threeDays = p.cacheDays.coerceAtLeast(1) * 86400_000L
         val prev = ServiceLocator.prevOpen
         val inactive = prev > 0 && System.currentTimeMillis() - prev > threeDays
         if (inactive) { clearPosters() }
