@@ -105,21 +105,31 @@ fun NWRoot(vm: MainViewModel) {
                         nav.navigate("explore") { popUpTo("home") { saveState = true }; launchSingleTop = true; restoreState = true }
                     })
             }
-            composable("explore") { ExploreScreen(vm, onOpen = { nav.navigate("detail/$it") }) }
-            composable("downloads") { DownloadsScreen(vm, onPlay = { nav.navigate("player/$it") }) }
+            composable("explore") { ExploreScreen(vm, onOpen = { nav.navigate("detail/$it") }, onPerson = { nav.navigate("person/${android.net.Uri.encode(it)}") }) }
+            composable("downloads") { DownloadsScreen(vm, onPlay = { nav.navigate("player/$it") }, onFreeSpace = { nav.navigate("page/space") }) }
             composable("mylist") { LibraryScreen(vm, onOpen = { nav.navigate("detail/$it") }) }
             composable("settings") { SettingsScreen(vm, onPage = { nav.navigate("page/$it") }) }
             composable("detail/{id}") { b ->
                 DetailScreen(vm, b.arguments?.getString("id") ?: "", onBack = { nav.popBackStack() },
-                    onPlay = { nav.navigate("player/$it") })
+                    onPlay = { nav.navigate("player/$it") },
+                    onPerson = { nav.navigate("person/${android.net.Uri.encode(it)}") })
+            }
+            composable("person/{name}") { b ->
+                PersonScreen(vm, b.arguments?.getString("name") ?: "", onBack = { nav.popBackStack() }, onOpen = { nav.navigate("detail/$it") })
             }
             composable("player/{id}") { b ->
                 PlayerScreen(vm, b.arguments?.getString("id") ?: "", onBack = { nav.popBackStack() },
-                    onNext = { next -> nav.navigate("player/$next") { popUpTo("player/{id}") { inclusive = true } } })
+                    onNext = { next -> nav.navigate("player/$next") { popUpTo("player/{id}") { inclusive = true } } },
+                    onVlc = { vid -> nav.navigate("vlc/$vid") { popUpTo("player/{id}") { inclusive = true } } })
             }
-            composable("page/{name}") { b -> SettingsPages(vm, b.arguments?.getString("name") ?: "", onBack = { nav.popBackStack() }) }
+            composable("vlc/{id}") { b ->
+                VlcPlayerScreen(vm, b.arguments?.getString("id") ?: "", onBack = { nav.popBackStack() },
+                    onNext = { next -> nav.navigate("player/$next") { popUpTo("vlc/{id}") { inclusive = true } } })
+            }
+            composable("page/{name}") { b -> SettingsPages(vm, b.arguments?.getString("name") ?: "", onBack = { nav.popBackStack() }, onPage = { nav.navigate("page/$it") }) }
         }
     }
+    UpdateHost()
 }
 
 @Composable
