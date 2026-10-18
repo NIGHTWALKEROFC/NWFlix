@@ -34,6 +34,7 @@ import app.nwmovie.ui.components.*
 import app.nwmovie.util.fmtRuntime
 import coil.compose.AsyncImage
 import kotlinx.coroutines.delay
+import java.util.Calendar
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -54,6 +55,14 @@ fun HomeScreen(
     val topRated = remember(matched) { matched.filter { it.view.rating > 0 }.sortedByOption(SortOption.RATING_HIGH).take(60) }
     val newest = remember(matched) { matched.sortedByOption(SortOption.NEWEST).take(60) }
     val recent = remember(groups) { groups.sortedByOption(SortOption.ADDED) }        // every movie, newest first
+    // Movie of the day: the same pick all day long, a new one tomorrow (only titles you have not watched).
+    val motd = remember(groups) {
+        val pool = groups.filter { it.view.matched && it.view.backdrop.isNotBlank() && it.files.none { f -> f.watched } }.sortedBy { it.view.id }
+        if (pool.size < 3) null else {
+            val c = Calendar.getInstance()
+            pool[((c.get(Calendar.YEAR) * 366L + c.get(Calendar.DAY_OF_YEAR)) * 7919L % pool.size).toInt()]
+        }
+    }
     val series = remember(groups) { groups.filter { it.isSeries }.sortedByOption(SortOption.ADDED) }
     val unmatched = remember(groups) { groups.filter { !it.view.matched } }
 
@@ -98,6 +107,7 @@ fun HomeScreen(
             }
         } else {
             if (featured.isNotEmpty()) item { Hero(featured, vm, onOpen) }
+            if (motd != null) item { MovieOfTheDay(motd, onOpen) }
             if (cont.isNotEmpty()) item { PosterRow(cont, "Continue Watching", prefs.showTitles, null, onOpen) }
             if (trending.isNotEmpty()) item { PosterRow(trending, "Trending Now", prefs.showTitles, { onSeeAll(SortOption.POPULAR) }, onOpen) }
             if (topRated.isNotEmpty()) item { PosterRow(topRated, "Top Rated", prefs.showTitles, { onSeeAll(SortOption.RATING_HIGH) }, onOpen) }
@@ -149,6 +159,21 @@ private fun Hero(list: List<MovieGroup>, vm: MainViewModel, onOpen: (String) -> 
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun MovieOfTheDay(g: MovieGroup, onOpen: (String) -> Unit) {
+    val m = g.view
+    Box(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp).height(150.dp).clip(RoundedCornerShape(16.dp)).clickable { onOpen(g.id) }) {
+        AsyncImage(TmdbClient.img(m.backdrop, imgSize("w780", "w500")), m.displayTitle, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+        GradientScrim(Modifier.fillMaxSize(), Color(0xFF070B1A))
+        Column(Modifier.align(Alignment.BottomStart).padding(14.dp)) {
+            Text("MOVIE OF THE DAY", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, letterSpacing = 2.sp)
+            Text(m.displayTitle, style = MaterialTheme.typography.titleLarge, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(listOf(if (m.displayYear > 0) m.displayYear.toString() else "", m.genreList.take(2).joinToString(" • "), if (m.rating > 0) "★ %.1f".format(m.rating) else "")
+                .filter { it.isNotBlank() }.joinToString("  •  "), style = MaterialTheme.typography.bodySmall, color = Color(0xFFCBD0F0))
         }
     }
 }
