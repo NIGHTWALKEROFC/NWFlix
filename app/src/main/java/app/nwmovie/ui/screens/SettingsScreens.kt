@@ -27,6 +27,8 @@ import app.nwmovie.MainViewModel
 import app.nwmovie.data.CacheManager
 import app.nwmovie.data.K
 import app.nwmovie.data.MovieGroup
+import app.nwmovie.data.Updater
+import app.nwmovie.data.db.DownloadItem
 import app.nwmovie.data.Secrets
 import app.nwmovie.ui.components.StorageBar
 import app.nwmovie.ui.theme.Accents
@@ -46,6 +48,7 @@ fun SettingsScreen(vm: MainViewModel, onPage: (String) -> Unit) {
         Triple(Icons.Default.Wifi, "Network & Download", "network"),
         Triple(Icons.Default.Storage, "Storage & Cache", "storage"),
         Triple(Icons.Default.BarChart, "Watch statistics", "stats"),
+        Triple(Icons.Default.SystemUpdate, "App updates", "updates"),
         Triple(Icons.Default.HelpOutline, "Help & Support", "help")
     )
     Column(Modifier.fillMaxSize().statusBarsPadding().verticalScroll(rememberScrollState())) {
@@ -156,7 +159,7 @@ private val langs = listOf("" to "Auto / none", "eng" to "English", "hin" to "Hi
 // ---------------------------------------------------------------- pages
 
 @Composable
-fun SettingsPages(vm: MainViewModel, name: String, onBack: () -> Unit) {
+fun SettingsPages(vm: MainViewModel, name: String, onBack: () -> Unit, onPage: (String) -> Unit = {}) {
     val p by vm.prefs.collectAsState()
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -202,6 +205,10 @@ fun SettingsPages(vm: MainViewModel, name: String, onBack: () -> Unit) {
 
         "stats" -> Page("Watch statistics", onBack) { StatsContent(vm) }
 
+        "space" -> Page("Free up space", onBack) { SpaceContent(vm) }
+
+        "updates" -> Page("App updates", onBack) { UpdatesContent(vm) }
+
         "appearance" -> Page("Appearance", onBack) {
             Group("Theme")
             ChoiceRow("Theme", p.theme, listOf("dark" to "Midnight (navy)", "amoled" to "AMOLED black", "light" to "Light")) { vm.set(K.theme, it) }
@@ -224,7 +231,10 @@ fun SettingsPages(vm: MainViewModel, name: String, onBack: () -> Unit) {
             SwitchRow("Resume playback", "Continue where you stopped", p.resume) { vm.set(K.resume, it) }
             SwitchRow("Auto-play next", "After a movie ends, play the next unwatched title in My List", p.autoNext) { vm.set(K.autoNext, it) }
             SwitchRow("Background playback", "Keep playing when you leave the app (off = the movie pauses)", p.bgPlayback) { vm.set(K.bgPlayback, it) }
+            Group("Compatibility")
+            ChoiceRow("Player engine", p.engine, listOf("auto" to "Automatic (VLC engine only when needed)", "exo" to "Standard player only", "vlc" to "Always VLC engine (all formats)")) { vm.set(K.engine, it) }
             Group("Audio & subtitles")
+            ChoiceRow("Sound preset", p.soundPreset, listOf("off" to "Off", "voice" to "Voice boost", "night" to "Night mode")) { vm.set(K.soundPreset, it) }
             ChoiceRow("Preferred audio language", p.audioLang, langs) { vm.set(K.audioLang, it) }
             ChoiceRow("Preferred subtitle language", p.subLang, langs.map { if (it.first == "") "" to "Off" else it }) { vm.set(K.subLang, it) }
             SliderRow("Subtitle size", "${p.subSize.toInt()} sp", p.subSize, 12f..36f, 11) { vm.set(K.subSize, it) }
@@ -285,6 +295,7 @@ fun SettingsPages(vm: MainViewModel, name: String, onBack: () -> Unit) {
             CacheRow("Movie index", usage.index, "Your lists & history are kept") { scope.launch { CacheManager.clearIndex(); refresh(); vm.rescan(false) } }
             CacheRow("Temporary playback files", usage.temp) { scope.launch { CacheManager.clearTemp(); refresh() } }
             Group("Downloads (kept separate from caches)")
+            ActionRow("Free up space", "See downloads by size, spot the ones you already watched and delete several at once", Icons.Default.Delete) { onPage("space") }
             ActionRow("Downloaded movies: ${fmtSize(usage.downloads)}", "Manage them in the Downloads tab. Clearing caches never deletes them.", Icons.Default.Download) {}
             Group("Limits & automatic cleanup")
             ChoiceRow("Poster cache limit (applies next start)", p.posterCacheMb, listOf(100, 200, 300, 500, 1000).map { it to "$it MB" }) { vm.set(K.posterCacheMb, it) }
@@ -384,5 +395,78 @@ private fun ColumnScope.StatsContent(vm: MainViewModel) {
                 }
             }
         }
+    }
+}
+
+// ---------------------------------------------------------------- free up space
+
+@Composable
+private fun ColumnScope.SpaceContent(vm: MainViewModel) {
+    val dls by vm.downloads.collectAsState()
+    val movies by vm.movies.collectAsState()
+    val done = remember(dls) { dls.map { it.first }.filter { it.state == DownloadItem.DONE }.sortedByDescending { it.total } }
+    val watched = remember(movies) { movies.filter { it.watched }.map { it.id }.toSet() }
+    var sel by remember { mutableStateOf(setOf<String>()) }
+    var confirm by remember { mutableStateOf(false) }
+    val selSize = done.filter { it.id in sel }.sumOf { it.total }
+    val watchedSize = done.filter { it.id in watched }.sumOf { it.total }
+
+    Column(Modifier.padding(16.dp)) {
+        Text("${done.size} downloaded  •  ${fmtSize(done.sumOf { it.total })} used", style = MaterialTheme.typography.titleMedium)
+        if (done.isEmpty()) Text("No downloaded movies. Nothing to free up here.", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
+        else {
+            Text("${done.count { it.id in watched }} already watched (${fmtSize(watchedSize)} can be freed)", style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp, bottom = 10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = { sel = done.filter { it.id in watched }.map { it.id }.toSet() }, contentPadding = PaddingValues(horizontal = 12.dp)) { Text("Select watched") }
+                OutlinedButton(onClick = { sel = done.map { it.id }.toSet() }, contentPadding = PaddingValues(horizontal = 12.dp)) { Text("Select all") }
+                TextButton(onClick = { sel = emptySet() }) { Text("Clear") }
+            }
+            Spacer(Modifier.height(8.dp))
+            done.forEach { d ->
+                Row(Modifier.fillMaxWidth().clickable { sel = if (d.id in sel) sel - d.id else sel + d.id }.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = d.id in sel, onCheckedChange = { sel = if (it) sel + d.id else sel - d.id })
+                    Column(Modifier.weight(1f)) {
+                        Text(d.title, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyLarge)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(fmtSize(d.total), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            if (d.id in watched) Text("  •  Watched", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+            Button(onClick = { confirm = true }, enabled = sel.isNotEmpty(), modifier = Modifier.fillMaxWidth().height(50.dp), shape = RoundedCornerShape(14.dp)) {
+                Icon(Icons.Default.Delete, null); Spacer(Modifier.width(8.dp)); Text("Delete ${sel.size} selected  •  ${fmtSize(selSize)}")
+            }
+        }
+    }
+    if (confirm) Confirm("Delete ${sel.size} download(s)?", "${fmtSize(selSize)} will be freed. The movies stay in Telegram and can be downloaded again.", "Delete",
+        { vm.deleteMany(sel); sel = emptySet() }, { confirm = false })
+}
+
+// ---------------------------------------------------------------- updates
+
+@Composable
+private fun ColumnScope.UpdatesContent(vm: MainViewModel) {
+    val st by Updater.state.collectAsState()
+    Column(Modifier.padding(16.dp)) {
+        Text("Installed version", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("${BuildConfig.VERSION_NAME}  (build ${BuildConfig.VERSION_CODE})", style = MaterialTheme.typography.titleLarge)
+        Spacer(Modifier.height(12.dp))
+        Text(
+            when (val s = st) {
+                is Updater.State.Checking -> "Checking…"
+                is Updater.State.UpToDate -> "You have the latest version."
+                is Updater.State.NotConfigured -> "Updates are not set up in this build."
+                is Updater.State.Available -> "Version ${s.info.versionName} is available."
+                is Updater.State.Failed -> s.message
+                else -> if (Updater.configured) "Tap the button to look for a new version." else "Updates are not set up in this build."
+            }, style = MaterialTheme.typography.bodyLarge
+        )
+        Spacer(Modifier.height(12.dp))
+        Button(onClick = { vm.checkUpdates(true) }, enabled = Updater.configured, shape = RoundedCornerShape(14.dp)) { Text("Check for updates") }
+        Text("Updates are signed by the developer and checked before they are installed. “Later” asks again the next day.",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 12.dp))
     }
 }
