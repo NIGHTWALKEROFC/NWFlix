@@ -45,7 +45,7 @@ import kotlinx.coroutines.launch
 import org.json.JSONArray
 
 @Composable
-fun DetailScreen(vm: MainViewModel, id: String, onBack: () -> Unit, onPlay: (String) -> Unit) {
+fun DetailScreen(vm: MainViewModel, id: String, onBack: () -> Unit, onPlay: (String) -> Unit, onPerson: (String) -> Unit = {}) {
     val movies by vm.movies.collectAsState()
     val downloads by vm.downloads.collectAsState()
     val prefs by vm.prefs.collectAsState()
@@ -132,10 +132,10 @@ fun DetailScreen(vm: MainViewModel, id: String, onBack: () -> Unit, onPlay: (Str
         val cast = parseCast(m.cast)
         if (cast.isNotEmpty()) item {
             Column {
-                Text("Cast", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(16.dp, 20.dp, 16.dp, 8.dp))
+                Text("Cast & crew  (tap a name)", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(16.dp, 20.dp, 16.dp, 8.dp))
                 LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                     items(cast) { c ->
-                        Column(Modifier.width(76.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Column(Modifier.width(76.dp).clip(RoundedCornerShape(10.dp)).clickable { onPerson(c.first) }, horizontalAlignment = Alignment.CenterHorizontally) {
                             Box(Modifier.size(64.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
                                 val u = TmdbClient.img(c.third, if (prefs.bandwidthSaver) "w92" else "w185")
                                 if (u != null) AsyncImage(u, c.first, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
@@ -192,10 +192,10 @@ fun DetailScreen(vm: MainViewModel, id: String, onBack: () -> Unit, onPlay: (Str
                             FilterChip(selected = qi.label == q, onClick = { quality = qi.label; season = -1 }, label = { Text(if (qi.label == "Other") "Other" else qi.label) })
                         }
                     }
-                    if (seasons.size > 1) LazyRow(contentPadding = PaddingValues(16.dp, 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (seasons.isNotEmpty()) LazyRow(contentPadding = PaddingValues(16.dp, 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         items(seasons, key = { it }) { sn -> FilterChip(selected = sn == curSeason, onClick = { season = sn }, label = { Text(if (sn == 0) "Specials" else "Season $sn") }) }
                     }
-                    Text("${seriesEps.count { it.season == curSeason }} episodes", style = MaterialTheme.typography.bodySmall,
+                    Text((if (curSeason == 0) "Specials" else "Season $curSeason") + "  •  ${seriesEps.count { it.season == curSeason }} episodes", style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(16.dp, 4.dp))
                 }
             }
