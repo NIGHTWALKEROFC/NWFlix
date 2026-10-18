@@ -6,6 +6,8 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.*
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -13,6 +15,9 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import app.nwmovie.MainViewModel
 import app.nwmovie.data.MovieGroup
@@ -20,10 +25,12 @@ import app.nwmovie.data.SortOption
 import app.nwmovie.data.sortedByOption
 import app.nwmovie.ui.components.EmptyState
 import app.nwmovie.ui.components.Poster
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-fun ExploreScreen(vm: MainViewModel, onOpen: (String) -> Unit) {
+fun ExploreScreen(vm: MainViewModel, onOpen: (String) -> Unit, onPerson: (String) -> Unit = {}) {
     val groups by vm.groups.collectAsState()
     val prefs by vm.prefs.collectAsState()
     val searchOpen by vm.searchOpen.collectAsState()
@@ -35,35 +42,46 @@ fun ExploreScreen(vm: MainViewModel, onOpen: (String) -> Unit) {
     var status by rememberSaveable { mutableStateOf("Any") }
     var type by rememberSaveable { mutableStateOf("Any") }
     var language by rememberSaveable { mutableStateOf("Any") }
-    var surpriseOpen by remember { mutableStateOf(false) }
     var sortOpen by remember { mutableStateOf(false) }
     var filterOpen by remember { mutableStateOf(false) }
+    var surpriseOpen by remember { mutableStateOf(false) }
+    var focused by remember { mutableStateOf(false) }
+    val focus = LocalFocusManager.current
 
     val genres = remember(groups) {
         listOf("All") + groups.flatMap { it.view.genreList }.groupingBy { it }.eachCount().entries.sortedByDescending { it.value }.map { it.key }
     }
     val languages = remember(groups) { groups.flatMap { it.languages }.groupingBy { it }.eachCount().entries.sortedByDescending { it.value }.map { it.key } }
+    val people = remember(groups) { groups.flatMap { g -> g.people.map { it.first } }.distinct() }
     val activeFilters = listOf(year, rating, status, type, language).count { it != "Any" }
-    val shown = remember(groups, genre, query, year, rating, status, type, language, sort) {
-        groups.filter { g ->
-            val m = g.view
-            (genre == "All" || genre in m.genreList) &&
-                (query.isBlank() || m.displayTitle.contains(query, true) || m.cast.contains(query, true) || g.files.any { it.fileName.contains(query, true) }) &&
-                (type == "Any" || (type == "Series") == g.isSeries) &&
-                (language == "Any" || language in g.languages) &&
-                when (year) {
-                    "2020s" -> m.displayYear in 2020..2029; "2010s" -> m.displayYear in 2010..2019
-                    "2000s" -> m.displayYear in 2000..2009; "1990s" -> m.displayYear in 1990..1999
-                    "Older" -> m.displayYear in 1..1989; else -> true
-                } &&
-                when (rating) { "6+" -> m.rating >= 6; "7+" -> m.rating >= 7; "8+" -> m.rating >= 8; else -> true } &&
-                when (status) {
-                    "Unwatched" -> m.lastPlayedAt == 0L
-                    "In progress" -> m.positionMs > 5000 && !m.watched
-                    "Watched" -> m.watched
-                    else -> true
-                }
-        }.sortedByOption(sort)
+
+    // The filtering/sorting runs on a background thread so the screen never freezes, even with thousands of files.
+    var shown by remember { mutableStateOf(emptyList<MovieGroup>()) }
+    var ready by remember { mutableStateOf(false) }
+    LaunchedEffect(groups, genre, query, year, rating, status, type, language, sort) {
+        val q = query.trim().lowercase()
+        shown = withContext(Dispatchers.Default) {
+            groups.filter { g ->
+                val m = g.view
+                (genre == "All" || genre in m.genreList) &&
+                    (q.isEmpty() || g.searchText.contains(q)) &&
+                    (type == "Any" || (type == "Series") == g.isSeries) &&
+                    (language == "Any" || language in g.languages) &&
+                    when (year) {
+                        "2020s" -> m.displayYear in 2020..2029; "2010s" -> m.displayYear in 2010..2019
+                        "2000s" -> m.displayYear in 2000..2009; "1990s" -> m.displayYear in 1990..1999
+                        "Older" -> m.displayYear in 1..1989; else -> true
+                    } &&
+                    when (rating) { "6+" -> m.rating >= 6; "7+" -> m.rating >= 7; "8+" -> m.rating >= 8; else -> true } &&
+                    when (status) {
+                        "Unwatched" -> m.lastPlayedAt == 0L
+                        "In progress" -> m.positionMs > 5000 && !m.watched
+                        "Watched" -> m.watched
+                        else -> true
+                    }
+            }.sortedByOption(sort)
+        }
+        ready = true
     }
 
     LazyVerticalGrid(GridCells.Fixed(3), Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
@@ -72,12 +90,25 @@ fun ExploreScreen(vm: MainViewModel, onOpen: (String) -> Unit) {
             Column {
                 Row(Modifier.statusBarsPadding().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text("Explore", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f).padding(start = 4.dp))
-                    IconButton(onClick = { vm.searchOpen.value = !searchOpen; if (searchOpen) query = "" }) {
+                    IconButton(onClick = { vm.searchOpen.value = !searchOpen; if (searchOpen) { query = ""; focus.clearFocus() } }) {
                         Icon(if (searchOpen) Icons.Default.Close else Icons.Default.Search, "Search")
                     }
                 }
-                if (searchOpen) OutlinedTextField(query, { query = it }, Modifier.fillMaxWidth().padding(vertical = 6.dp), singleLine = true,
-                    placeholder = { Text("Search movie, actor or director") }, leadingIcon = { Icon(Icons.Default.Search, null) }, shape = RoundedCornerShape(14.dp))
+                if (searchOpen) {
+                    OutlinedTextField(query, { query = it }, Modifier.fillMaxWidth().padding(vertical = 6.dp).onFocusChanged { focused = it.isFocused }, singleLine = true,
+                        placeholder = { Text("Search movie, actor or director") }, leadingIcon = { Icon(Icons.Default.Search, null) },
+                        shape = RoundedCornerShape(14.dp),
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                        keyboardActions = KeyboardActions(onSearch = { vm.addSearch(query); focus.clearFocus() }))
+                    if (focused) Suggestions(
+                        query = query, history = prefs.searchHistory.split("\n").filter { it.isNotBlank() }, groups = groups, people = people, genres = genres,
+                        onPickText = { query = it; vm.addSearch(it); focus.clearFocus() },
+                        onOpenTitle = { g -> vm.addSearch(g.view.displayTitle); focus.clearFocus(); onOpen(g.id) },
+                        onPerson = { n -> vm.addSearch(n); focus.clearFocus(); onPerson(n) },
+                        onGenre = { g -> genre = g; query = ""; focus.clearFocus() },
+                        onClearHistory = { vm.clearSearchHistory() }
+                    )
+                }
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(vertical = 6.dp)) {
                     items(genres) { g -> FilterChip(selected = g == genre, onClick = { genre = g }, label = { Text(g) }) }
                 }
@@ -95,11 +126,13 @@ fun ExploreScreen(vm: MainViewModel, onOpen: (String) -> Unit) {
                 }
             }
         }
-        if (shown.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) {
+        if (!ready) item(span = { GridItemSpan(maxLineSpan) }) {
+            Box(Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+        } else if (shown.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) {
             EmptyState(Icons.Default.Search, "Nothing matches", "Try another genre, search word or clear the filters.")
         }
         items(shown, key = { it.id }) { g ->
-            Poster(g.view, Modifier, prefs.showTitles, g.badge) { onOpen(g.id) }
+            Poster(g.view, Modifier, prefs.showTitles, g.badge) { if (query.length >= 2) vm.addSearch(query); onOpen(g.id) }
         }
     }
 
@@ -131,6 +164,47 @@ fun ExploreScreen(vm: MainViewModel, onOpen: (String) -> Unit) {
             }
             Spacer(Modifier.navigationBarsPadding())
         }
+    }
+}
+
+/** Recent searches while the box is empty; matching titles, people and genres while typing. */
+@Composable
+private fun Suggestions(
+    query: String, history: List<String>, groups: List<MovieGroup>, people: List<String>, genres: List<String>,
+    onPickText: (String) -> Unit, onOpenTitle: (MovieGroup) -> Unit, onPerson: (String) -> Unit, onGenre: (String) -> Unit, onClearHistory: () -> Unit
+) {
+    val q = query.trim()
+    Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f), modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp)) {
+        Column(Modifier.padding(vertical = 6.dp)) {
+            if (q.isEmpty()) {
+                if (history.isEmpty()) Text("Type a movie, actor, director or genre", Modifier.padding(14.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                else {
+                    Row(Modifier.padding(start = 14.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text("Recent searches", Modifier.weight(1f), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                        TextButton(onClick = onClearHistory) { Text("Clear") }
+                    }
+                    history.forEach { h -> SuggestRow(Icons.Default.History, h) { onPickText(h) } }
+                }
+            } else {
+                val titles = remember(q, groups) { groups.filter { it.view.displayTitle.contains(q, true) }.take(4) }
+                val ppl = remember(q, people) { people.filter { it.contains(q, true) }.take(4) }
+                val gen = remember(q, genres) { genres.filter { it != "All" && it.contains(q, true) }.take(2) }
+                titles.forEach { g -> SuggestRow(Icons.Default.Movie, g.view.displayTitle + if (g.view.displayYear > 0) "  (${g.view.displayYear})" else "") { onOpenTitle(g) } }
+                ppl.forEach { n -> SuggestRow(Icons.Default.Person, n) { onPerson(n) } }
+                gen.forEach { n -> SuggestRow(Icons.Default.Category, "Genre: $n") { onGenre(n) } }
+                if (titles.isEmpty() && ppl.isEmpty() && gen.isEmpty()) Text("No suggestions. Press search to look in file names.", Modifier.padding(14.dp),
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+@Composable
+private fun SuggestRow(icon: androidx.compose.ui.graphics.vector.ImageVector, text: String, onClick: () -> Unit) {
+    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+        Icon(icon, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(12.dp))
+        Text(text, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
     }
 }
 
