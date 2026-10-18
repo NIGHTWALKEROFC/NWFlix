@@ -31,7 +31,10 @@ data class Prefs(
     val capBackfill: Boolean = false,
     val smartQuality: Boolean = true, val dlOnlyCharging: Boolean = false, val dlOnlyNight: Boolean = false,
     val clearAfterWatch: String = "auto", val cacheDays: Int = 3, val onboarded: Boolean = false,
-    val uiLang: String = "en", val dirBackfill: Boolean = false
+    val uiLang: String = "en", val dirBackfill: Boolean = false,
+    val soundPreset: String = "off", val searchHistory: String = "",
+    val engine: String = "auto", val updateSnoozeUntil: Long = 0L, val lastUpdateCheck: Long = 0L,
+    val scanVersion: Int = 0
 )
 
 object K {
@@ -62,6 +65,8 @@ object K {
     val dlOnlyNight = booleanPreferencesKey("dlOnlyNight"); val clearAfterWatch = stringPreferencesKey("clearAfterWatch")
     val cacheDays = intPreferencesKey("cacheDays"); val onboarded = booleanPreferencesKey("onboarded")
     val uiLang = stringPreferencesKey("uiLang"); val dirBackfill = booleanPreferencesKey("dirBackfill")
+    val soundPreset = stringPreferencesKey("soundPreset"); val searchHistory = stringPreferencesKey("searchHistory")
+    val scanVersion = intPreferencesKey("scanVersion"); val engine = stringPreferencesKey("engine"); val updateSnoozeUntil = longPreferencesKey("updateSnoozeUntil"); val lastUpdateCheck = longPreferencesKey("lastUpdateCheck")
 }
 
 class SettingsStore(ctx: Context) {
@@ -92,7 +97,10 @@ class SettingsStore(ctx: Context) {
             smartQuality = p[K.smartQuality] ?: d.smartQuality, dlOnlyCharging = p[K.dlOnlyCharging] ?: d.dlOnlyCharging,
             dlOnlyNight = p[K.dlOnlyNight] ?: d.dlOnlyNight, clearAfterWatch = p[K.clearAfterWatch] ?: d.clearAfterWatch,
             cacheDays = p[K.cacheDays] ?: d.cacheDays, onboarded = p[K.onboarded] ?: d.onboarded,
-            uiLang = p[K.uiLang] ?: d.uiLang, dirBackfill = p[K.dirBackfill] ?: d.dirBackfill
+            uiLang = p[K.uiLang] ?: d.uiLang, dirBackfill = p[K.dirBackfill] ?: d.dirBackfill,
+            soundPreset = p[K.soundPreset] ?: d.soundPreset, searchHistory = p[K.searchHistory] ?: d.searchHistory,
+            engine = p[K.engine] ?: d.engine, updateSnoozeUntil = p[K.updateSnoozeUntil] ?: d.updateSnoozeUntil, lastUpdateCheck = p[K.lastUpdateCheck] ?: d.lastUpdateCheck,
+            scanVersion = p[K.scanVersion] ?: d.scanVersion
         )
     }
 
