@@ -9,4 +9,7 @@ object AppState {
     /** True while the player screen is open (used to auto-enter Picture-in-Picture). */
     @Volatile var playerOpen = false
     @Volatile var playerPlaying = false
+    /** "Switch version": the player that opens next continues at this position. */
+    @Volatile var switchTo: String? = null
+    @Volatile var switchMs: Long = 0L
 }
