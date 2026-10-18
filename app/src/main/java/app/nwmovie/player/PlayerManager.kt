@@ -88,6 +88,7 @@ object PlayerManager {
 
     /** Plays one file, or several parts of a movie one after another. */
     fun openAll(items: List<PlayItem>, startIndex: Int, startMs: Long) {
+        app.nwmovie.data.Integrity.verify(ServiceLocator.app)
         val player = player()
         val hide = ServiceLocator.prefs.value.hideNotif
         val list = items.map { it2 ->
@@ -120,6 +121,7 @@ object PlayerManager {
         controller = MediaController.Builder(ctx, token).buildAsync()
     }
 
+    fun isCurrent(p: ExoPlayer): Boolean = exo === p
     fun releaseIfCurrent(p: ExoPlayer) { if (exo === p) release() }
 
     fun release() {
