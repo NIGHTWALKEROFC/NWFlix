@@ -27,6 +27,7 @@ import app.nwmovie.MainViewModel
 import app.nwmovie.data.CacheManager
 import app.nwmovie.data.K
 import app.nwmovie.data.MovieGroup
+import app.nwmovie.data.Integrity
 import app.nwmovie.data.Updater
 import app.nwmovie.data.db.DownloadItem
 import app.nwmovie.data.Secrets
@@ -466,6 +467,19 @@ private fun ColumnScope.UpdatesContent(vm: MainViewModel) {
         )
         Spacer(Modifier.height(12.dp))
         Button(onClick = { vm.checkUpdates(true) }, enabled = Updater.configured, shape = RoundedCornerShape(14.dp)) { Text("Check for updates") }
+        val ctx = LocalContext.current
+        val fp = remember { Integrity.fingerprint(ctx) }
+        if (fp != null) {
+            Text("Signing fingerprint (SHA-256)", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 20.dp))
+            Text(fp, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            OutlinedButton(onClick = {
+                (ctx.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager)
+                    .setPrimaryClip(android.content.ClipData.newPlainText("fingerprint", fp))
+                vm.say("Fingerprint copied")
+            }, modifier = Modifier.padding(top = 6.dp)) { Text("Copy fingerprint") }
+            Text("Use this value as APP_CERT_SHA256 in Codemagic (one-time setup).", style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
+        }
         Text("Updates are signed by the developer and checked before they are installed. “Later” asks again the next day.",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 12.dp))
     }
