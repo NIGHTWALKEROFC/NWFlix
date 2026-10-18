@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import app.nwmovie.data.K
 import app.nwmovie.data.MovieGroup
 import app.nwmovie.data.NetPolicy
+import app.nwmovie.data.Updater
 import app.nwmovie.data.qualityOf
 import app.nwmovie.data.SortOption
 import app.nwmovie.data.db.DownloadItem
@@ -17,9 +18,11 @@ import app.nwmovie.data.tmdb.TmdbClient
 import app.nwmovie.data.toGroups
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
+@OptIn(FlowPreview::class)
 class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val sl = ServiceLocator
 
@@ -35,7 +38,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     val movies: StateFlow<List<Movie>> = sl.db.movies().all().stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
     /** Files of the same movie merged into one entry. */
-    val groups: StateFlow<List<MovieGroup>> = movies.map { it.toGroups() }.flowOn(Dispatchers.Default)
+    val groups: StateFlow<List<MovieGroup>> = movies.debounce(150).map { it.toGroups() }.flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
     val downloads: StateFlow<List<Pair<DownloadItem, Long>>> =
         combine(sl.downloads.items, sl.downloads.progress) { list, prog -> list.map { it to (prog[it.id] ?: it.done) } }
@@ -49,9 +52,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             auth.collect { a ->
                 if (a is Tg.Auth.Ready) {
                     userName.value = sl.tg.me()
-                    val first = !prefs.value.capBackfill      // one deep scan after this update to read file captions
-                    rescan(first)
-                    if (first) sl.settings.set(K.capBackfill, true)
+                    // One deep scan after an update that changes what is recognised (TV episodes, captions, parts). Normal opens are incremental.
+                    val deep = prefs.value.scanVersion < 3
+                    rescan(deep)
+                    if (deep) sl.settings.set(K.scanVersion, 3)
                     if (!prefs.value.dirBackfill) {                // one time: add directors to older saved details
                         sl.settings.set(K.dirBackfill, true)
                         try { sl.indexer.backfillDirectors() } catch (_: Exception) { }
@@ -60,6 +64,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
     }
+
+    fun checkUpdates(manual: Boolean) { viewModelScope.launch { Updater.check(getApplication(), manual) } }
+    fun continueUpdate() { viewModelScope.launch { Updater.continueIfPermitted(getApplication()) } }
 
     fun say(msg: String) { toast.tryEmit(msg) }
 
@@ -97,6 +104,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun toggleWatch(m: Movie) { val ids = idsOf(m.id); val v = !m.watchlist; viewModelScope.launch { sl.db.movies().setWatchlistMany(ids, v) } }
     fun toggleFav(m: Movie) { val ids = idsOf(m.id); val v = !m.favorite; viewModelScope.launch { sl.db.movies().setFavoriteMany(ids, v) } }
     fun clearHistory(id: String) { val ids = idsOf(id); viewModelScope.launch { sl.db.movies().clearHistoryMany(ids) } }
+    fun deleteMany(ids: Collection<String>) { viewModelScope.launch { ids.forEach { sl.downloads.delete(it) }; say("Deleted ${ids.size} download(s)") } }
+
+    fun addSearch(q: String) {
+        val t = q.trim()
+        if (t.length < 2) return
+        viewModelScope.launch {
+            val rest = prefs.value.searchHistory.split("\n").filter { it.isNotBlank() && !it.equals(t, true) }
+            sl.settings.set(K.searchHistory, (listOf(t) + rest).take(8).joinToString("\n"))
+        }
+    }
+    fun clearSearchHistory() { viewModelScope.launch { sl.settings.set(K.searchHistory, "") } }
+
     fun clearAllHistory() { viewModelScope.launch { sl.db.movies().clearAllHistory(); say("Viewing history cleared") } }
     fun loadDetails(m: Movie) { viewModelScope.launch { try { sl.indexer.refreshDetails(m) } catch (_: Exception) { } } }
 
