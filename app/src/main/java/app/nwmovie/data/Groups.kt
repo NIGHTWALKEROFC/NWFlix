@@ -70,7 +70,18 @@ class MovieGroup(val files: List<Movie>) {
     fun pick(saver: Boolean, metered: Boolean, smart: Boolean): Movie =
         resumeFile ?: if (saver || (smart && metered)) smallestFile else bestFile
 
-    val languages: Set<String> by lazy { files.flatMap { fileTags(it) }.filter { it in LANGUAGE_TAGS }.toSet() }
+    /** Directors / creators and cast (name to role), read from the saved details. */
+    val people: List<Pair<String, String>> = run {
+        try {
+            val a = org.json.JSONArray(view.cast)
+            (0 until a.length()).map { val o = a.getJSONObject(it); o.optString("n") to o.optString("c") }.filter { it.first.isNotBlank() }
+        } catch (e: Exception) { emptyList() }
+    }
+
+    /** Lower-case text used by the search box (title, file names, cast), built once. */
+    val searchText: String = (view.displayTitle + " " + view.cast + " " + files.joinToString(" ") { it.fileName }).lowercase()
+
+    val languages: Set<String> = files.flatMap { fileTags(it) }.filter { it in LANGUAGE_TAGS }.toSet()
 
     // ----- series -----
     val qualities: List<QualityInfo> by lazy {
@@ -112,49 +123,44 @@ fun List<MovieGroup>.sortedByOption(o: SortOption): List<MovieGroup> = when (o) 
     SortOption.LARGEST -> sortedByDescending { g -> g.files.maxOf { it.size } }
 }
 
-/** Quality / language / audio tags read from a file's name and caption. Empty list = nothing recognised. */
-fun fileTags(m: Movie): List<String> {
+private fun rx(vararg pairs: Pair<String, String>) = pairs.map { Regex(it.first) to it.second }
+private val TAG_RES = rx("\\b(2160p|4k|uhd)\\b" to "4K", "\\b1440p\\b" to "1440p", "\\b1080p\\b" to "1080p", "\\b720p\\b" to "720p",
+    "\\b576p\\b" to "576p", "\\b480p\\b" to "480p", "\\b360p\\b" to "360p")
+private val TAG_SRC = rx("\\b(hd ?cam|cam ?rip|cam|telesync|hdts)\\b" to "CAM", "\\b(blu ?ray|bdrip|brrip|bd ?rip)\\b" to "BluRay",
+    "\\bweb ?-?dl\\b" to "WEB-DL", "\\bweb ?-?rip\\b" to "WEBRip", "\\bhd ?rip\\b" to "HDRip", "\\bdvd ?rip\\b" to "DVDRip", "\\bhdtv\\b" to "HDTV")
+private val TAG_CODEC = rx("\\b(x265|hevc|h ?265)\\b" to "HEVC", "\\b(x264|h ?264|avc)\\b" to "x264", "\\bav1\\b" to "AV1")
+private val TAG_AUDIO = rx("\\batmos\\b" to "Atmos", "\\b(ddp|eac3|e ac3)\\b" to "DD+", "\\bdts\\b" to "DTS", "\\b(ac3|dd)\\b" to "DD", "\\baac\\b" to "AAC")
+private val TAG_LANG = listOf("hindi" to "Hindi", "english" to "English", "tamil" to "Tamil", "telugu" to "Telugu", "malayalam" to "Malayalam",
+    "kannada" to "Kannada", "bengali" to "Bengali", "punjabi" to "Punjabi", "marathi" to "Marathi", "korean" to "Korean",
+    "japanese" to "Japanese", "spanish" to "Spanish", "french" to "French", "german" to "German", "arabic" to "Arabic")
+    .map { Regex("\\b${it.first}\\b") to it.second }
+private val R_SEPARATORS = Regex("[._\\[\\](){}+,|]")
+private val R_10BIT = Regex("\\b10 ?bit\\b")
+private val R_HDR = Regex("\\b(hdr10 ?|hdr)\\b")
+private val R_DV = Regex("\\b(dolby vision|dv)\\b")
+private val R_51 = Regex("(?<!\\d)5[. ]1(?!\\d)")
+private val R_DUAL = Regex("\\b(dual audio|dual)\\b")
+private val R_MULTI = Regex("\\bmulti\\b")
+private val R_SUBS = Regex("\\b(esubs?|subs?|subtitles?)\\b")
+private val tagCache = java.util.concurrent.ConcurrentHashMap<String, List<String>>()
+
+/** Quality / language / audio tags read from a file's name and caption. Empty list = nothing recognised. Cached: cheap to call often. */
+fun fileTags(m: Movie): List<String> = tagCache.getOrPut(m.id + "|" + m.fileName.hashCode() + "|" + m.caption.hashCode()) { computeTags(m) }
+
+private fun computeTags(m: Movie): List<String> {
     val raw = (m.fileName + " " + m.caption).lowercase()
-    val t = raw.replace(Regex("[._\\[\\](){}+,|]"), " ")
-    fun has(r: String) = Regex(r).containsMatchIn(t)
+    val t = R_SEPARATORS.replace(raw, " ")
     val out = linkedSetOf<String>()
-    when {
-        has("\\b(2160p|4k|uhd)\\b") -> out += "4K"
-        has("\\b1440p\\b") -> out += "1440p"
-        has("\\b1080p\\b") -> out += "1080p"
-        has("\\b720p\\b") -> out += "720p"
-        has("\\b576p\\b") -> out += "576p"
-        has("\\b480p\\b") -> out += "480p"
-        has("\\b360p\\b") -> out += "360p"
-    }
-    when {
-        has("\\b(hd ?cam|cam ?rip|cam|telesync|hdts)\\b") -> out += "CAM"
-        has("\\b(blu ?ray|bdrip|brrip|bd ?rip)\\b") -> out += "BluRay"
-        has("\\bweb ?-?dl\\b") -> out += "WEB-DL"
-        has("\\bweb ?-?rip\\b") -> out += "WEBRip"
-        has("\\bhd ?rip\\b") -> out += "HDRip"
-        has("\\bdvd ?rip\\b") -> out += "DVDRip"
-        has("\\bhdtv\\b") -> out += "HDTV"
-    }
-    when {
-        has("\\b(x265|hevc|h ?265)\\b") -> out += "HEVC"
-        has("\\b(x264|h ?264|avc)\\b") -> out += "x264"
-        has("\\bav1\\b") -> out += "AV1"
-    }
-    if (has("\\b10 ?bit\\b")) out += "10-bit"
-    if (has("\\b(hdr10 ?|hdr)\\b")) out += "HDR"
-    if (has("\\b(dolby vision|dv)\\b")) out += "Dolby Vision"
-    if (has("\\batmos\\b")) out += "Atmos"
-    else if (has("\\b(ddp|eac3|e ac3)\\b")) out += "DD+"
-    else if (has("\\bdts\\b")) out += "DTS"
-    else if (has("\\b(ac3|dd)\\b")) out += "DD"
-    else if (has("\\baac\\b")) out += "AAC"
-    if (Regex("(?<!\\d)5[. ]1(?!\\d)").containsMatchIn(raw)) out += "5.1"
-    if (has("\\b(dual audio|dual)\\b")) out += "Dual Audio" else if (has("\\bmulti\\b")) out += "Multi Audio"
-    listOf("hindi" to "Hindi", "english" to "English", "tamil" to "Tamil", "telugu" to "Telugu", "malayalam" to "Malayalam",
-        "kannada" to "Kannada", "bengali" to "Bengali", "punjabi" to "Punjabi", "marathi" to "Marathi", "korean" to "Korean",
-        "japanese" to "Japanese", "spanish" to "Spanish", "french" to "French", "german" to "German", "arabic" to "Arabic")
-        .forEach { (w, label) -> if (has("\\b$w\\b")) out += label }
-    if (has("\\b(esubs?|subs?|subtitles?)\\b")) out += "Subs"
+    TAG_RES.firstOrNull { it.first.containsMatchIn(t) }?.let { out += it.second }
+    TAG_SRC.firstOrNull { it.first.containsMatchIn(t) }?.let { out += it.second }
+    TAG_CODEC.firstOrNull { it.first.containsMatchIn(t) }?.let { out += it.second }
+    if (R_10BIT.containsMatchIn(t)) out += "10-bit"
+    if (R_HDR.containsMatchIn(t)) out += "HDR"
+    if (R_DV.containsMatchIn(t)) out += "Dolby Vision"
+    TAG_AUDIO.firstOrNull { it.first.containsMatchIn(t) }?.let { out += it.second }
+    if (R_51.containsMatchIn(raw)) out += "5.1"
+    if (R_DUAL.containsMatchIn(t)) out += "Dual Audio" else if (R_MULTI.containsMatchIn(t)) out += "Multi Audio"
+    TAG_LANG.forEach { (r, label) -> if (r.containsMatchIn(t)) out += label }
+    if (R_SUBS.containsMatchIn(t)) out += "Subs"
     return out.toList()
 }
