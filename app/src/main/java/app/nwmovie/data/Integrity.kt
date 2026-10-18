@@ -20,10 +20,11 @@ object Integrity {
         val expected = BuildConfig.CERT_SHA256.replace(":", "").trim().lowercase()
         if (expected.isEmpty()) return                                        // not configured for this build
         val debuggable = (ctx.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
-        if (debuggable || signingSha256(ctx) != expected) die()
+        if (debuggable || fingerprint(ctx) != expected) die()
     }
 
-    private fun signingSha256(ctx: Context): String? = try {
+    /** SHA-256 fingerprint of the certificate this app is signed with (shown in Settings > App updates for the one-time setup). */
+    fun fingerprint(ctx: Context): String? = try {
         val pm = ctx.packageManager
         val sig = if (Build.VERSION.SDK_INT >= 28) {
             pm.getPackageInfo(ctx.packageName, PackageManager.GET_SIGNING_CERTIFICATES).signingInfo?.apkContentsSigners?.firstOrNull()
