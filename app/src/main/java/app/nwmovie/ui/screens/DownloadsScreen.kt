@@ -27,7 +27,7 @@ import app.nwmovie.util.fmtSize
 import coil.compose.AsyncImage
 
 @Composable
-fun DownloadsScreen(vm: MainViewModel, onPlay: (String) -> Unit) {
+fun DownloadsScreen(vm: MainViewModel, onPlay: (String) -> Unit, onFreeSpace: () -> Unit = {}) {
     val dl by vm.downloads.collectAsState()
     var tab by remember { mutableIntStateOf(0) }
     val ctx = LocalContext.current
@@ -82,7 +82,8 @@ fun DownloadsScreen(vm: MainViewModel, onPlay: (String) -> Unit) {
             }
         }
         Column(Modifier.padding(16.dp)) {
-            Row { Text("Storage used by downloads", style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+            Row(verticalAlignment = Alignment.CenterVertically) { Text("Storage used by downloads", style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+                TextButton(onClick = onFreeSpace) { Text("Free up space") }
                 Text("${fmtSize(used)} / ${fmtSize(total)}", style = MaterialTheme.typography.bodySmall) }
             Spacer(Modifier.height(6.dp))
             StorageBar(used, total)
