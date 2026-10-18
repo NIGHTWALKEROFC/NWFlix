@@ -38,6 +38,10 @@ android {
         buildConfigField("int", "TG_API_ID", tgId)
         buildConfigField("String", "TG_API_HASH", "\"${secret("TG_API_HASH")}\"")
         buildConfigField("String", "TMDB_API_KEY", "\"${secret("TMDB_API_KEY")}\"")
+        // In-app updates + anti-tamper (all optional; empty = feature off)
+        buildConfigField("String", "UPDATE_URL", "\"${secret("UPDATE_URL")}\"")
+        buildConfigField("String", "UPDATE_PUBKEY", "\"${secret("UPDATE_PUBKEY")}\"")
+        buildConfigField("String", "CERT_SHA256", "\"${secret("APP_CERT_SHA256")}\"")
     }
 
     splits {
@@ -118,6 +122,9 @@ dependencies {
 
     // Telegram TDLib (prebuilt Android binaries, served from JitPack - see settings.gradle.kts)
     implementation("com.github.tdlibx:td:1.8.56")
+
+    // VLC engine: plays every format (AVI, WMV, FLV, DTS, AC3…). LGPL licence, free.
+    implementation("org.videolan.android:libvlc-all:3.6.0")
 
     implementation("io.coil-kt:coil-compose:2.7.0")
     implementation("androidx.room:room-runtime:2.6.1")
