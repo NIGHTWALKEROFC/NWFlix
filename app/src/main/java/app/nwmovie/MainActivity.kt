@@ -55,7 +55,10 @@ class MainActivity : FragmentActivity() {
     override fun onStart() {
         super.onStart()
         ServiceLocator.scope.launch { ServiceLocator.settings.set(K.lastOpen, System.currentTimeMillis()) }
+        app.nwmovie.data.Integrity.verify(this)
         vm.scanIfStale()   // auto-scan for new movies every time the app is opened
+        vm.continueUpdate()
+        vm.checkUpdates(false)
     }
 
     override fun onStop() {
