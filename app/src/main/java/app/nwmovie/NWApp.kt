@@ -13,6 +13,7 @@ import kotlinx.coroutines.launch
 class NWApp : Application(), ImageLoaderFactory {
     override fun onCreate() {
         super.onCreate()
+        app.nwmovie.data.Integrity.verify(this)
         ServiceLocator.init(this)
         DownloadService.ensureChannel(this)
         ServiceLocator.tg.start()
