@@ -14,6 +14,12 @@
 #       TMDB_API_KEY   your TMDB v3 API key
 #   The "groups:" line below connects the group to this workflow.
 #
+# OPTIONAL extra variables for the same group (nwmovie_secrets) - they switch on the in-app updater and the anti-tamper check:
+#   UPDATE_URL      https://your-site.com/nwmovie/update.json   (the signed file made by tools/make-update.sh)
+#   UPDATE_PUBKEY   public key (base64) printed by the setup commands at the top of tools/make-update.sh
+#   APP_CERT_SHA256 SHA-256 fingerprint of your signing keystore (keytool -list -v -keystore <file>), with or without colons
+#   Leave them empty and those features stay off.
+#
 # Signing uses the keystore already uploaded in Codemagic (reference name: nightwalker_keystore).
 # No "instance_type" on purpose (free plan = default machine).
 # One workflow builds every CPU type: arm64-v8a, armeabi-v7a, x86_64 + one universal APK.
