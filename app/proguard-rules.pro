@@ -5,3 +5,10 @@
 # Room
 -keep class * extends androidx.room.RoomDatabase
 -dontwarn androidx.room.paging.**
+
+# VLC engine (native code calls into these classes)
+-keep class org.videolan.libvlc.** { *; }
+-dontwarn org.videolan.**
+# Harder to read / re-package
+-repackageclasses 'a'
+-allowaccessmodification
