@@ -58,6 +58,8 @@ class DownloadsManager(private val ctx: Context, private val scope: CoroutineSco
             while (true) {
                 kotlinx.coroutines.delay(30_000)
                 val p = ServiceLocator.prefs.value
+                val visible = ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)
+                if (!visible && !p.bgDownloads) continue
                 val list = dao.list()
                 if (scheduleBlock(p) == null) {
                     if (NetPolicy.downloadBlock(p) == null) list.filter { it.state == DownloadItem.QUEUED }.forEach { begin(it) }
