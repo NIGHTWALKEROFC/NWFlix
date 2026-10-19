@@ -12,4 +12,6 @@ object AppState {
     /** "Switch version": the player that opens next continues at this position. */
     @Volatile var switchTo: String? = null
     @Volatile var switchMs: Long = 0L
+    /** Movie id the user chose to play with the standard player even though the VLC engine would normally open. */
+    @Volatile var forceStandard: String? = null
 }
