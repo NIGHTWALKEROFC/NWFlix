@@ -22,11 +22,6 @@ import java.security.MessageDigest
 import java.security.Signature
 import java.security.spec.X509EncodedKeySpec
 
-/**
- * In-app updates. update.json (and update.json.sig, an RSA signature of it) live on your website.
- * The app only trusts an update.json signed with YOUR private key (the public key is built into the app),
- * downloads the APK that fits this phone's CPU, checks its SHA-256, and installs it with the system installer.
- */
 object Updater {
     class Info(val versionCode: Int, val versionName: String, val notes: String, val mandatory: Boolean, val url: String, val sha256: String, val size: Long)
 
@@ -39,12 +34,14 @@ object Updater {
         data class NeedPermission(val info: Info) : State
         data class Downloading(val info: Info, val percent: Int) : State
         data class Installing(val info: Info) : State
-        data class Failed(val message: String, val info: Info? = null) : State
+        data class Failed(val message: String, val info: Info? = null, val blocking: Boolean = false) : State
     }
 
     val state = MutableStateFlow<State>(State.Idle)
+    @Volatile var lastInfo: Info? = null
     const val ACTION_RESULT = "app.nwmovie.INSTALL_RESULT"
     private const val DAY = 24L * 3600_000
+    private const val CHECK_EVERY = 3L * 3600_000
 
     val configured: Boolean get() = BuildConfig.UPDATE_URL.startsWith("https://") && BuildConfig.UPDATE_PUBKEY.isNotBlank()
 
@@ -61,13 +58,13 @@ object Updater {
         Signature.getInstance("SHA256withRSA").run { initVerify(pub); update(data); verify(Base64.decode(sigB64.trim(), Base64.DEFAULT)) }
     } catch (e: Exception) { false }
 
-    /** manual = user pressed "Check for updates": ignores the "later" snooze and shows the result. */
     suspend fun check(ctx: Context, manual: Boolean) {
         Integrity.verify(ctx)
         if (!configured) { state.value = State.NotConfigured; return }
         val p = ServiceLocator.prefs.value
         val now = System.currentTimeMillis()
-        if (!manual && (now < p.updateSnoozeUntil || now - p.lastUpdateCheck < 6 * 3600_000L)) return
+        val forced = p.forceUpdateCode > BuildConfig.VERSION_CODE
+        if (!manual && !forced && (now < p.updateSnoozeUntil || now - p.lastUpdateCheck < CHECK_EVERY)) return
         if (state.value is State.Downloading || state.value is State.Installing) return
         state.value = State.Checking
         try {
@@ -87,13 +84,19 @@ object Updater {
                     url, a.getString("sha256").lowercase(), a.optLong("size", 0))
             }
             ServiceLocator.settings.set(K.lastUpdateCheck, now)
-            state.value = if (info.versionCode > BuildConfig.VERSION_CODE) State.Available(info) else State.UpToDate
+            val newer = info.versionCode > BuildConfig.VERSION_CODE
+            ServiceLocator.settings.set(K.forceUpdateCode, if (newer && info.mandatory) info.versionCode else 0)
+            lastInfo = info
+            state.value = if (newer) State.Available(info) else State.UpToDate
         } catch (e: Exception) {
-            state.value = if (manual) State.Failed("Couldn't check for updates: ${e.message}") else State.Idle
+            state.value = when {
+                forced -> State.Failed("This update is required. Connect to the internet and try again.", null, blocking = true)
+                manual -> State.Failed("Couldn't check for updates: ${e.message}")
+                else -> State.Idle
+            }
         }
     }
 
-    /** "Later": hide the question until tomorrow. */
     suspend fun later() {
         ServiceLocator.settings.set(K.updateSnoozeUntil, System.currentTimeMillis() + DAY)
         state.value = State.Idle
@@ -106,7 +109,6 @@ object Updater {
         ctx.startActivity(i)
     }
 
-    /** Called after the user returns from the "allow installs" screen. */
     suspend fun continueIfPermitted(ctx: Context) {
         val s = state.value
         if (s is State.NeedPermission && canInstall(ctx)) downloadAndInstall(ctx, s.info)
@@ -121,7 +123,7 @@ object Updater {
             state.value = State.Installing(info)
             withContext(Dispatchers.IO) { install(ctx, file) }
         } catch (e: Exception) {
-            state.value = State.Failed(e.message ?: "Update failed", info)
+            state.value = State.Failed(e.message ?: "Update failed", info, blocking = info.mandatory)
         }
     }
 
@@ -151,7 +153,7 @@ object Updater {
     private fun install(ctx: Context, file: File) {
         val pi = ctx.packageManager.packageInstaller
         val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
-        if (Build.VERSION.SDK_INT >= 31) params.setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)   // updates silently when Android allows it
+        if (Build.VERSION.SDK_INT >= 31) params.setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
         val sid = pi.createSession(params)
         pi.openSession(sid).use { s ->
             file.inputStream().use { i -> s.openWrite("nwmovie", 0, file.length()).use { o -> i.copyTo(o); s.fsync(o) } }
