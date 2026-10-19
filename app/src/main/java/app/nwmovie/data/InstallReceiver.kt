@@ -5,7 +5,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageInstaller
 
-/** Receives the result of the system installer (asks for the confirmation screen when Android needs it). */
 class InstallReceiver : BroadcastReceiver() {
     override fun onReceive(ctx: Context, intent: Intent) {
         when (intent.getIntExtra(PackageInstaller.EXTRA_STATUS, -1)) {
@@ -14,8 +13,14 @@ class InstallReceiver : BroadcastReceiver() {
                 val confirm = intent.getParcelableExtra<Intent>(Intent.EXTRA_INTENT)
                 if (confirm != null) ctx.startActivity(confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             }
-            PackageInstaller.STATUS_SUCCESS -> { /* the app is replaced and restarted by Android */ }
-            else -> Updater.state.value = Updater.State.Failed(intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE) ?: "Installation failed")
+            PackageInstaller.STATUS_SUCCESS -> Unit
+            else -> {
+                val info = Updater.lastInfo
+                Updater.state.value = Updater.State.Failed(
+                    intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE) ?: "The update was not installed",
+                    info, blocking = info?.mandatory == true
+                )
+            }
         }
     }
 }
