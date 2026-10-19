@@ -77,9 +77,17 @@ class Indexer(private val tg: Tg, private val tmdb: TmdbClient, private val db: 
     }
 
     private suspend fun matchOne(m: Movie) {
-        val hit = TmdbClient.pickBest(m.parsedTitle, m.parsedYear, tmdb.search(m.parsedTitle, m.parsedYear, m.isSeries))
-        if (hit == null) { db.movies().update(m.copy(triedAt = System.currentTimeMillis())); return }
-        applyDetail(m, tmdb.details(hit.id, m.isSeries))
+        val fresh = FilenameParser.parse(m.fileName, m.caption)
+        val year = fresh?.year?.takeIf { it > 0 } ?: m.parsedYear
+        val names = listOfNotNull(fresh?.title, m.parsedTitle).flatMap { FilenameParser.titleVariants(it) }.distinct().take(5)
+        var hit: TmdbClient.Hit? = null
+        for (n in names) {
+            hit = TmdbClient.pickBest(n, year, tmdb.search(n, year, m.isSeries))
+            if (hit != null) break
+        }
+        val base = if (fresh != null && fresh.title.isNotBlank()) m.copy(parsedTitle = fresh.title, parsedYear = fresh.year) else m
+        if (hit == null) { db.movies().update(base.copy(triedAt = System.currentTimeMillis())); return }
+        applyDetail(base, tmdb.details(hit.id, m.isSeries))
     }
 
     private suspend fun applyDetail(m: Movie, d: TmdbClient.Detail) {
