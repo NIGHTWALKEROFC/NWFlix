@@ -74,7 +74,7 @@ object LocalStreamServer {
             if (req[0].equals("HEAD", true)) return
 
             var pos = start
-            val window = if (ServiceLocator.prefs.value.bandwidthSaver) 16L * 1024 * 1024 else 128L * 1024 * 1024
+            val window = if (ServiceLocator.prefs.value.bandwidthSaver || app.nwmovie.data.CacheManager.isLowStorage(ServiceLocator.app)) 16L * 1024 * 1024 else 128L * 1024 * 1024
             var windowEnd = pos + window
             var lastKick = SystemClock.elapsedRealtime()
             runBlocking { try { tg.startDownload(fileId, pos, window) } catch (_: Exception) { } }
