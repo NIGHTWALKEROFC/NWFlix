@@ -34,7 +34,7 @@ data class Prefs(
     val uiLang: String = "en", val dirBackfill: Boolean = false,
     val soundPreset: String = "off", val searchHistory: String = "",
     val engine: String = "auto", val updateSnoozeUntil: Long = 0L, val lastUpdateCheck: Long = 0L,
-    val scanVersion: Int = 0
+    val scanVersion: Int = 0, val previews: Boolean = true, val forceUpdateCode: Int = 0
 )
 
 object K {
@@ -67,6 +67,7 @@ object K {
     val uiLang = stringPreferencesKey("uiLang"); val dirBackfill = booleanPreferencesKey("dirBackfill")
     val soundPreset = stringPreferencesKey("soundPreset"); val searchHistory = stringPreferencesKey("searchHistory")
     val scanVersion = intPreferencesKey("scanVersion"); val engine = stringPreferencesKey("engine"); val updateSnoozeUntil = longPreferencesKey("updateSnoozeUntil"); val lastUpdateCheck = longPreferencesKey("lastUpdateCheck")
+    val previews = booleanPreferencesKey("previews"); val forceUpdateCode = intPreferencesKey("forceUpdateCode")
 }
 
 class SettingsStore(ctx: Context) {
@@ -100,7 +101,8 @@ class SettingsStore(ctx: Context) {
             uiLang = p[K.uiLang] ?: d.uiLang, dirBackfill = p[K.dirBackfill] ?: d.dirBackfill,
             soundPreset = p[K.soundPreset] ?: d.soundPreset, searchHistory = p[K.searchHistory] ?: d.searchHistory,
             engine = p[K.engine] ?: d.engine, updateSnoozeUntil = p[K.updateSnoozeUntil] ?: d.updateSnoozeUntil, lastUpdateCheck = p[K.lastUpdateCheck] ?: d.lastUpdateCheck,
-            scanVersion = p[K.scanVersion] ?: d.scanVersion
+            scanVersion = p[K.scanVersion] ?: d.scanVersion, previews = p[K.previews] ?: d.previews,
+            forceUpdateCode = p[K.forceUpdateCode] ?: d.forceUpdateCode
         )
     }
 
