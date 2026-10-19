@@ -16,8 +16,41 @@ object FilenameParser {
     private val JUNK = Regex(
         "(?i)\\b(2160p|1080p|720p|576p|480p|4k|uhd|bluray|blu-ray|brrip|bdrip|webrip|web-dl|webdl|web|hdrip|hdtv|dvdrip|dvdscr|" +
             "x264|x265|h264|h265|hevc|avc|10bit|8bit|aac|ac3|eac3|dts|ddp?5?|atmos|hdr10?|hdr|dv|remux|proper|extended|unrated|" +
-            "repack|yify|yts|rarbg|dual|multi|esubs?|subs?|hindi|tamil|telugu|malayalam|english|dubbed)\\b.*"
+            "repack|yify|yts|rarbg|dual|multi|esubs?|subs?|hindi|tamil|telugu|malayalam|english|dubbed|hdcam|camrip|hdts|hdtc|predvd|" +
+            "amzn|nf|dsnp|zee5|hotstar|sonyliv|atvp|hmax|tamilmv|tamilblasters|tamilrockers|mkvcinemas|hdhub4u|vegamovies|filmyzilla|" +
+            "bolly4u|katmoviehd|moviesmod|mlwbd|jiorockers)\\b.*"
     )
+
+    // Site or channel names stuck in front of the real title.
+    private val WWW_PREFIX = Regex("(?i)^\\s*(?:https?://)?www\\.[a-z0-9-]+\\.[a-z]{2,6}\\b[\\s._-]*")
+    private val DIGIT_SITE_PREFIX = Regex("(?i)^\\s*[a-z0-9-]*\\d[a-z0-9-]*\\.(?:com|net|org|xyz|cc|ws|lol|club|site|vip|link|ink|io)\\b[\\s._-]*")
+    private val SITE_DASH_PREFIX = Regex("(?i)^\\s*[a-z0-9-]+\\.(?:com|net|org|xyz|cc|ws|co|in|me|tv)\\s+[-–]\\s+")
+    private val HANDLE_PREFIX = Regex("^\\s*@[A-Za-z0-9_]+[\\s._-]*")
+    private val LEADING_BRACKETS = Regex("^\\s*(?:\\[[^\\]]*\\]|\\{[^}]*\\})[\\s._-]*")
+    private val TAG_WORD = Regex("^[A-Z]{2,5}[\\s_-]+(?=\\S)")
+    private val TAG_GLUED = Regex("^[A-Z]{1,4}(?=[A-Z][a-z]{2,})")
+
+    private fun stripPrefixes(raw: String): String {
+        var t = raw
+        repeat(4) {
+            val before = t
+            t = t.replace(WWW_PREFIX, "").replace(DIGIT_SITE_PREFIX, "").replace(SITE_DASH_PREFIX, "")
+                .replace(HANDLE_PREFIX, "").replace(LEADING_BRACKETS, "")
+            if (t == before) return t
+        }
+        return t
+    }
+
+    /** The title as parsed, then a few cleaned-up guesses (leading tag like "TM", first word dropped…) to try on TMDB one by one. */
+    fun titleVariants(title: String): List<String> {
+        val out = linkedSetOf(title.trim())
+        out += title.replace(TAG_WORD, "").trim()
+        out += title.replace(TAG_GLUED, "").trim()
+        val words = title.trim().split(' ').filter { it.isNotBlank() }
+        if (words.size >= 3 && words[0].length <= 6) out += words.drop(1).joinToString(" ")
+        if (words.size >= 4 && words[0].length <= 6 && words[1].length <= 6) out += words.drop(2).joinToString(" ")
+        return out.filter { it.length >= 2 }
+    }
 
     fun extension(name: String) = name.substringAfterLast('.', "").lowercase()
 
@@ -63,7 +96,7 @@ object FilenameParser {
     }
 
     private fun fromText(raw: String): Parsed? {
-        var t = raw.replace(Regex("^\\[[^\\]]*\\]\\s*"), "").replace(Regex("[._]+"), " ").replace(Regex("[\\[\\](){}]"), " ")
+        var t = stripPrefixes(raw).replace(Regex("[._]+"), " ").replace(Regex("[\\[\\](){}]"), " ")
         t = t.replace(Regex("\\s+"), " ").trim()
         if (t.isBlank()) return null
         val ym = YEAR.findAll(t).firstOrNull { it.range.first > 0 }
