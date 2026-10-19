@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.datastore.preferences.core.Preferences
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import app.nwmovie.data.CacheManager
 import app.nwmovie.data.K
 import app.nwmovie.data.MovieGroup
 import app.nwmovie.data.NetPolicy
@@ -53,9 +54,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 if (a is Tg.Auth.Ready) {
                     userName.value = sl.tg.me()
                     // One deep scan after an update that changes what is recognised (TV episodes, captions, parts). Normal opens are incremental.
-                    val deep = prefs.value.scanVersion < 3
+                    val deep = prefs.value.scanVersion < 4
                     rescan(deep)
-                    if (deep) sl.settings.set(K.scanVersion, 3)
+                    if (deep) sl.settings.set(K.scanVersion, 4)
                     if (!prefs.value.dirBackfill) {                // one time: add directors to older saved details
                         sl.settings.set(K.dirBackfill, true)
                         try { sl.indexer.backfillDirectors() } catch (_: Exception) { }
@@ -143,6 +144,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun preload(f: Movie) {
         viewModelScope.launch {
             if (prefs.value.bandwidthSaver || NetPolicy.metered.value || NetPolicy.streamBlock(prefs.value) != null) return@launch
+            if (CacheManager.isLowStorage(getApplication())) return@launch
             if (sl.downloads.localPath(f.id) != null) return@launch
             try { val tf = sl.tg.refreshFile(f); sl.tg.startDownload(tf?.id ?: f.fileId, 0, 6L * 1024 * 1024, 8) } catch (_: Exception) { }
         }
