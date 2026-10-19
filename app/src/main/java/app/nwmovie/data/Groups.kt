@@ -33,8 +33,20 @@ class QualityInfo(val label: String, val files: List<Movie>) {
     val size: Long get() = files.sumOf { it.size }
 }
 
+/** The same file forwarded into several chats has the same size, length and episode: keep one copy of it. */
+private fun dropCopies(all: List<Movie>): List<Movie> {
+    if (all.size < 2) return all
+    fun used(m: Movie) = (if (m.lastPlayedAt > 0) 4 else 0) + (if (m.watched) 2 else 0) + (if (m.watchlist || m.favorite) 1 else 0)
+    return all.groupBy { "${it.size}|${it.durationSec}|${it.season}|${it.episode}|${it.part}" }.values.flatMap { same ->
+        if (same.size == 1 || same.first().size <= 0) same
+        else listOf(same.sortedWith(compareByDescending<Movie> { used(it) }.thenBy { it.addedAt }).first())
+    }
+}
+
 /** One movie or series that may exist as several Telegram files (1080p, 720p, different languages, parts…). */
-class MovieGroup(val files: List<Movie>) {
+class MovieGroup(allFiles: List<Movie>) {
+    val files: List<Movie> = dropCopies(allFiles)
+
     private val rep: Movie = files.filter { it.lastPlayedAt > 0 }.maxByOrNull { it.lastPlayedAt }
         ?: files.maxByOrNull { it.size } ?: files.first()
 
@@ -44,8 +56,8 @@ class MovieGroup(val files: List<Movie>) {
 
     /** What posters/lists show: the details with lists/history merged across all files. */
     val view: Movie = rep.copy(
-        watchlist = files.any { it.watchlist }, favorite = files.any { it.favorite },
-        lastPlayedAt = files.maxOf { it.lastPlayedAt }, addedAt = files.maxOf { it.addedAt }
+        watchlist = allFiles.any { it.watchlist }, favorite = allFiles.any { it.favorite },
+        lastPlayedAt = allFiles.maxOf { it.lastPlayedAt }, addedAt = allFiles.maxOf { it.addedAt }
     )
 
     /** Files, with the parts of multi-part movies joined into one entry. */
