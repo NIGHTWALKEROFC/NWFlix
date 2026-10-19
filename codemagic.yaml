@@ -1,33 +1,6 @@
-# NWMovie - Codemagic build file (same style as your NWisp Chat setup).
-#
-# HOW THE KEYS REACH THE APP (same idea as NWisp):
-#   Codemagic stores the values -> they become environment variables during the build ->
-#   app/build.gradle.kts reads them and compiles them into the app. Nothing is typed inside the app
-#   and nothing secret sits in GitHub.
-#   NWisp does the same with "--dart-define=..."; this native Android app does it with BuildConfig.
-#
-# ONE-TIME SETUP IN CODEMAGIC (before the first build):
-#   Codemagic -> Teams -> your team -> Global variables and secrets -> Add group
-#   Group name: nwmovie_secrets   with these 3 variables (tick "Secure"):
-#       TG_API_ID      your Telegram api_id (numbers only)
-#       TG_API_HASH    your Telegram api_hash
-#       TMDB_API_KEY   your TMDB v3 API key
-#   The "groups:" line below connects the group to this workflow.
-#
-# OPTIONAL extra variables for the same group (nwmovie_secrets) - they switch on the in-app updater and the anti-tamper check:
-#   UPDATE_URL      https://your-site.com/nwmovie/update.json   (the signed file made by tools/make-update.sh)
-#   UPDATE_PUBKEY   public key (base64) printed by the setup commands at the top of tools/make-update.sh
-#   APP_CERT_SHA256 SHA-256 fingerprint of your signing keystore (keytool -list -v -keystore <file>), with or without colons
-#   Leave them empty and those features stay off.
-#
-# Signing uses the keystore already uploaded in Codemagic (reference name: nightwalker_keystore).
-# No "instance_type" on purpose (free plan = default machine).
-# One workflow builds every CPU type: arm64-v8a, armeabi-v7a, x86_64 + one universal APK.
-# Start it with "Start new build" - Codemagic always fetches the newest code from GitHub.
-
 workflows:
   nwmovie-android:
-    name: NWMovie - Android (all CPU types + universal)
+    name: NWMovie Android
     max_build_duration: 60
     environment:
       java: 17
@@ -40,7 +13,7 @@ workflows:
         script: |
           echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
           if [ -z "$TG_API_ID" ] || [ -z "$TG_API_HASH" ] || [ -z "$TMDB_API_KEY" ]; then
-            echo "ERROR: TG_API_ID, TG_API_HASH and TMDB_API_KEY must be set in the Codemagic variable group nwmovie_secrets."
+            echo "TG_API_ID, TG_API_HASH and TMDB_API_KEY are missing in group nwmovie_secrets"
             exit 1
           fi
           if [ -f gradle/wrapper/gradle-wrapper.jar ] && [ -f gradlew ]; then
