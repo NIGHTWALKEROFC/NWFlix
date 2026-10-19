@@ -18,6 +18,7 @@ import androidx.media3.extractor.DefaultExtractorsFactory
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import app.nwmovie.ServiceLocator
+import app.nwmovie.data.CacheManager
 import app.nwmovie.data.db.Movie
 import app.nwmovie.data.telegram.TelegramDataSource
 import com.google.common.util.concurrent.ListenableFuture
@@ -53,7 +54,7 @@ object PlayerManager {
             }
 
         // Telegram-aware data source: tg:// URIs are streamed through TDLib, everything else is normal.
-        val window = { if (ServiceLocator.prefs.value.bandwidthSaver) 16L * 1024 * 1024 else 128L * 1024 * 1024 }
+        val window = { if (ServiceLocator.prefs.value.bandwidthSaver || CacheManager.isLowStorage(ServiceLocator.app)) 16L * 1024 * 1024 else 128L * 1024 * 1024 }
         val dataSources = DefaultDataSource.Factory(ctx, TelegramDataSource.Factory(ServiceLocator.tg, window))
         val sourceFactory = DefaultMediaSourceFactory(dataSources, DefaultExtractorsFactory().setConstantBitrateSeekingEnabled(true))
 
