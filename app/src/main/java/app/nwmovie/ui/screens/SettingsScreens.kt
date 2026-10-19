@@ -27,10 +27,10 @@ import app.nwmovie.MainViewModel
 import app.nwmovie.data.CacheManager
 import app.nwmovie.data.K
 import app.nwmovie.data.MovieGroup
-import app.nwmovie.data.Integrity
 import app.nwmovie.data.Updater
 import app.nwmovie.data.db.DownloadItem
 import app.nwmovie.data.Secrets
+import app.nwmovie.ui.BrandMark
 import app.nwmovie.ui.components.StorageBar
 import app.nwmovie.ui.theme.Accents
 import app.nwmovie.util.fmtSize
@@ -50,7 +50,8 @@ fun SettingsScreen(vm: MainViewModel, onPage: (String) -> Unit) {
         Triple(Icons.Default.Storage, "Storage & Cache", "storage"),
         Triple(Icons.Default.BarChart, "Watch statistics", "stats"),
         Triple(Icons.Default.SystemUpdate, "App updates", "updates"),
-        Triple(Icons.Default.HelpOutline, "Help & Support", "help")
+        Triple(Icons.Default.HelpOutline, "Help & Support", "help"),
+        Triple(Icons.Default.Info, "About", "about")
     )
     Column(Modifier.fillMaxSize().statusBarsPadding().verticalScroll(rememberScrollState())) {
         Text("Settings", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(16.dp, 8.dp))
@@ -196,10 +197,6 @@ fun SettingsPages(vm: MainViewModel, name: String, onBack: () -> Unit, onPage: (
             ActionRow("Secure Telegram session", "Stored in an encrypted database; the key is kept in the Android Keystore. Logs never contain your data.", Icons.Default.Shield) {}
             ActionRow("Clear session", "Log out of Telegram and remove all local data", Icons.Default.Logout, danger = true) { clearSession = true }
             ActionRow("Clear all local data", "Deletes index, caches and downloads (stays logged in)", Icons.Default.Delete, danger = true) { clearData = true }
-            Group("About")
-            ActionRow("NWMovie ${BuildConfig.VERSION_NAME}", "Terms: use only content you are authorised to access.") {}
-            ActionRow("Movie data by TMDB", "This product uses the TMDB API but is not endorsed or certified by TMDB.") {}
-            ActionRow("Telegram", "Built on TDLib (Boost Software License). Telegram is a trademark of its owner; NWMovie is not affiliated with Telegram.") {}
             if (clearSession) Confirm("Clear session?", "You will be logged out and all local NWMovie data will be deleted.", "Clear", { vm.logout() }, { clearSession = false })
             if (clearData) Confirm("Delete all local data?", "Index, caches and downloaded movies will be removed.", "Delete", { vm.clearLocalData() }, { clearData = false })
         }
@@ -209,6 +206,8 @@ fun SettingsPages(vm: MainViewModel, name: String, onBack: () -> Unit, onPage: (
         "space" -> Page("Free up space", onBack) { SpaceContent(vm) }
 
         "updates" -> Page("App updates", onBack) { UpdatesContent(vm) }
+
+        "about" -> Page("About", onBack) { AboutContent() }
 
         "appearance" -> Page("Appearance", onBack) {
             Group("Theme")
@@ -224,6 +223,7 @@ fun SettingsPages(vm: MainViewModel, name: String, onBack: () -> Unit, onPage: (
             Group("Display")
             SwitchRow("Full-screen player", "Hide system bars while watching", p.fullscreen) { vm.set(K.fullscreen, it) }
             SwitchRow("Show movie titles under posters", null, p.showTitles) { vm.set(K.showTitles, it) }
+            SwitchRow("Movie previews", "Plays short clips from random scenes on a movie page. Wi-Fi only, and off while Data saver is on.", p.previews) { vm.set(K.previews, it) }
         }
 
         "player" -> Page("Player Settings", onBack) {
@@ -235,7 +235,6 @@ fun SettingsPages(vm: MainViewModel, name: String, onBack: () -> Unit, onPage: (
             Group("Compatibility")
             ChoiceRow("Player engine", p.engine, listOf("auto" to "Automatic (VLC engine only when needed)", "exo" to "Standard player only", "vlc" to "Always VLC engine (all formats)")) { vm.set(K.engine, it) }
             Group("Audio & subtitles")
-            ChoiceRow("Sound preset", p.soundPreset, listOf("off" to "Off", "voice" to "Voice boost", "night" to "Night mode")) { vm.set(K.soundPreset, it) }
             ChoiceRow("Preferred audio language", p.audioLang, langs) { vm.set(K.audioLang, it) }
             ChoiceRow("Preferred subtitle language", p.subLang, langs.map { if (it.first == "") "" to "Off" else it }) { vm.set(K.subLang, it) }
             SliderRow("Subtitle size", "${p.subSize.toInt()} sp", p.subSize, 12f..36f, 11) { vm.set(K.subSize, it) }
@@ -244,8 +243,6 @@ fun SettingsPages(vm: MainViewModel, name: String, onBack: () -> Unit, onPage: (
             SliderRow("Default subtitle delay", "${p.subDelayMs} ms", p.subDelayMs.toFloat(), -5000f..5000f, 99) { vm.set(K.subDelayMs, (it / 100).toInt() * 100) }
             SliderRow("Default audio delay", "${p.audioDelayMs} ms", p.audioDelayMs.toFloat(), 0f..2000f, 19) { vm.set(K.audioDelayMs, (it / 100).toInt() * 100) }
             Group("Video")
-            ChoiceRow("Aspect ratio", p.aspect, listOf("fit" to "Fit to screen", "fill" to "Stretch", "crop" to "Crop (zoom)", "16:9" to "16:9", "4:3" to "4:3")) { vm.set(K.aspect, it) }
-            ChoiceRow("Screen rotation", p.rotation, listOf("auto" to "Auto-rotate", "landscape" to "Landscape", "portrait" to "Portrait", "video" to "Match video")) { vm.set(K.rotation, it) }
             SwitchRow("Hardware acceleration", "Turn off if a movie shows green/black video (uses software decoding)", p.hwAccel) { vm.set(K.hwAccel, it) }
             SwitchRow("Automatic quality", "Adapt quality to your network when a stream offers several", p.autoQuality) { vm.set(K.autoQuality, it) }
             ChoiceRow("Maximum quality", p.maxQuality, listOf(0 to "No limit", 2160 to "2160p", 1080 to "1080p", 720 to "720p", 480 to "480p")) { vm.set(K.maxQuality, it) }
@@ -326,7 +323,6 @@ fun SettingsPages(vm: MainViewModel, name: String, onBack: () -> Unit, onPage: (
             ActionRow("A movie has the wrong poster", "Open it → “Wrong or missing match?” → search and pick the correct movie.") {}
             ActionRow("Video is slow to start", "Streaming depends on Telegram's speed. A loading spinner shows while data arrives. Downloading first removes buffering.") {}
             ActionRow("Video won't play", "Some codecs (e.g. DTS/E-AC3 audio, AVI containers) aren't supported on every phone. Try turning hardware acceleration off, or download and open in another player.") {}
-            ActionRow("Legal", "Use NWMovie only with content you own or are authorised to view. Follow Telegram's Terms of Service and copyright laws in your country.") {}
         }
     }
 }
@@ -453,34 +449,60 @@ private fun ColumnScope.UpdatesContent(vm: MainViewModel) {
     val st by Updater.state.collectAsState()
     Column(Modifier.padding(16.dp)) {
         Text("Installed version", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text("${BuildConfig.VERSION_NAME}  (build ${BuildConfig.VERSION_CODE})", style = MaterialTheme.typography.titleLarge)
+        Text(BuildConfig.VERSION_NAME, style = MaterialTheme.typography.titleLarge)
         Spacer(Modifier.height(12.dp))
         Text(
             when (val s = st) {
                 is Updater.State.Checking -> "Checking…"
                 is Updater.State.UpToDate -> "You have the latest version."
-                is Updater.State.NotConfigured -> "Updates are not set up in this build."
+                is Updater.State.NotConfigured -> "Updates are not available in this build."
                 is Updater.State.Available -> "Version ${s.info.versionName} is available."
                 is Updater.State.Failed -> s.message
-                else -> if (Updater.configured) "Tap the button to look for a new version." else "Updates are not set up in this build."
+                else -> if (Updater.configured) "Tap the button to look for a new version." else "Updates are not available in this build."
             }, style = MaterialTheme.typography.bodyLarge
         )
         Spacer(Modifier.height(12.dp))
         Button(onClick = { vm.checkUpdates(true) }, enabled = Updater.configured, shape = RoundedCornerShape(14.dp)) { Text("Check for updates") }
-        val ctx = LocalContext.current
-        val fp = remember { Integrity.fingerprint(ctx) }
-        if (fp != null) {
-            Text("Signing fingerprint (SHA-256)", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 20.dp))
-            Text(fp, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            OutlinedButton(onClick = {
-                (ctx.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager)
-                    .setPrimaryClip(android.content.ClipData.newPlainText("fingerprint", fp))
-                vm.say("Fingerprint copied")
-            }, modifier = Modifier.padding(top = 6.dp)) { Text("Copy fingerprint") }
-            Text("Use this value as APP_CERT_SHA256 in Codemagic (one-time setup).", style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
-        }
-        Text("Updates are signed by the developer and checked before they are installed. “Later” asks again the next day.",
+        Text("If you skip an update, NWMovie asks again the next day.",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 12.dp))
     }
+}
+
+// ---------------------------------------------------------------- about
+
+private const val CONTACT_TO = "rinshan602@gmail.com"
+
+private fun contactDeveloper(ctx: android.content.Context) {
+    val body = "\n\n---\nNWMovie ${BuildConfig.VERSION_NAME}\nAndroid ${android.os.Build.VERSION.RELEASE}\n${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}"
+    val i = android.content.Intent(android.content.Intent.ACTION_SENDTO, android.net.Uri.parse("mailto:")).apply {
+        putExtra(android.content.Intent.EXTRA_EMAIL, arrayOf(CONTACT_TO))
+        putExtra(android.content.Intent.EXTRA_SUBJECT, "NWMovie feedback")
+        putExtra(android.content.Intent.EXTRA_TEXT, body)
+    }
+    try { ctx.startActivity(i) } catch (e: Exception) {
+        android.widget.Toast.makeText(ctx, "No email app found on this phone", android.widget.Toast.LENGTH_LONG).show()
+    }
+}
+
+@Composable
+private fun ColumnScope.AboutContent() {
+    val ctx = LocalContext.current
+    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        BrandMark(72)
+        Text("NWMovie", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(top = 12.dp))
+        Text("Version ${BuildConfig.VERSION_NAME}", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("Watch the movies in your own Telegram chats, without leaving the app.",
+            Modifier.padding(top = 12.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+    Group("Developer")
+    ActionRow("Mohammed Rinshan", "NIGHTWALKER", Icons.Default.Person) {}
+    ActionRow("Contact & report a bug", "Send a message to the developer", Icons.Default.Email) { contactDeveloper(ctx) }
+    Group("Credits")
+    ActionRow("Movie information", "Posters and details come from TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB.") {}
+    ActionRow("Telegram", "Built on TDLib (Boost Software License). NWMovie is not affiliated with or endorsed by Telegram.") {}
+    ActionRow("Players", "Media3 ExoPlayer (Apache 2.0) and the VLC engine, libVLC (LGPL 2.1).") {}
+    Group("Legal")
+    ActionRow("Use responsibly", "Use NWMovie only with content you own or are allowed to watch, and follow Telegram's terms and the copyright laws of your country.") {}
+    Text("© 2026 Mohammed Rinshan (NIGHTWALKER). All rights reserved.",
+        Modifier.padding(16.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
