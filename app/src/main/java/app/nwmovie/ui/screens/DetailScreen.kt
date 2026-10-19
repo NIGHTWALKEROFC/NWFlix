@@ -81,6 +81,7 @@ fun DetailScreen(vm: MainViewModel, id: String, onBack: () -> Unit, onPlay: (Str
                 val back = TmdbClient.img(m.backdrop, if (prefs.bandwidthSaver) "w500" else "w780") ?: TmdbClient.img(m.poster, if (prefs.bandwidthSaver) "w342" else "w500")
                 if (back != null) AsyncImage(back, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                 else Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant))
+                if (prefs.previews) PreviewVideo(playTarget, Modifier.fillMaxSize())
                 GradientScrim(Modifier.fillMaxSize())
                 Row(Modifier.statusBarsPadding().padding(8.dp)) {
                     FilledTonalIconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
@@ -207,8 +208,6 @@ fun DetailScreen(vm: MainViewModel, id: String, onBack: () -> Unit, onPlay: (Str
         item {
             Column(Modifier.padding(16.dp, 20.dp)) {
                 TextButton(onClick = { fixOpen = true }, contentPadding = PaddingValues(0.dp)) { Text("Wrong or missing match?") }
-                Text("Metadata and images by TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB.",
-                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }
