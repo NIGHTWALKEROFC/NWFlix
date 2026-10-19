@@ -3,7 +3,6 @@ package app.nwmovie.ui.screens
 import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import android.media.AudioManager
-import android.media.audiofx.Equalizer
 import android.media.audiofx.LoudnessEnhancer
 import android.provider.Settings
 import android.util.TypedValue
@@ -137,7 +136,6 @@ fun PlayerScreen(vm: MainViewModel, id: String, onBack: () -> Unit, onNext: (Str
     var tracks by remember { mutableStateOf(Tracks.EMPTY) }
     var vsize by remember { mutableStateOf(VideoSize.UNKNOWN) }
     var speed by remember { mutableFloatStateOf(prefs.speed) }
-    var aspect by remember { mutableStateOf(prefs.aspect) }
     var show by remember { mutableStateOf(true) }
     var touchTick by remember { mutableIntStateOf(0) }
     var sheet by remember { mutableStateOf<String?>(null) }
@@ -150,8 +148,8 @@ fun PlayerScreen(vm: MainViewModel, id: String, onBack: () -> Unit, onNext: (Str
     val playedFileIds = remember { mutableListOf<Int>() }
     var locked by remember { mutableStateOf(false) }                        // touch lock
     fun cid(): String = parts.getOrNull(curIdx)?.id ?: id
-    var abA by remember { mutableLongStateOf(-1L) }
-    var abB by remember { mutableLongStateOf(-1L) }
+    var manualRotate by remember { mutableStateOf(false) }
+    val lowAtStart = remember { CacheManager.isLowStorage(ctx) }
     var sleepAt by remember { mutableLongStateOf(0L) }          // 0 off, -1 end of movie, else epoch ms
     var ext by remember { mutableStateOf<List<Sub>>(emptyList()) }
     var extName by remember { mutableStateOf("") }
@@ -167,7 +165,9 @@ fun PlayerScreen(vm: MainViewModel, id: String, onBack: () -> Unit, onNext: (Str
         if (m == null) { error = "Movie not found."; loadingText = null; return@LaunchedEffect }
         movie = m
         // Formats ExoPlayer cannot open (AVI, WMV, FLV…) go straight to the VLC engine.
-        if (p.engine == "vlc" || (p.engine == "auto" && PlayerRouting.preferVlc(m.fileName))) { onVlc(id); return@LaunchedEffect }
+        if (AppState.forceStandard != id && (p.engine == "vlc" || (p.engine == "auto" && PlayerRouting.preferVlc(m.fileName)))) { onVlc(id); return@LaunchedEffect }
+        // Low on space: free old streamed data first so this movie plays without piling up cache.
+        if (lowAtStart && !ServiceLocator.downloads.hasActive()) try { ServiceLocator.tg.optimizeTemp(0, 0, all = true) } catch (_: Exception) { }
         // Parts of one multi-part movie (CD1/CD2, Part 1/Part 2) are played one after another.
         val pk = partKey(m)
         val list = if (pk != null) {
@@ -182,14 +182,15 @@ fun PlayerScreen(vm: MainViewModel, id: String, onBack: () -> Unit, onNext: (Str
             if (local == null) {
                 val block = NetPolicy.streamBlock(p)
                 if (block != null) { error = block; loadingText = null; return@LaunchedEffect }
-                val tf = ServiceLocator.tg.refreshFile(f)
-                if (tf == null) {
+                val found = resolveTgFile(f)
+                if (found == null) {
                     error = "This file is no longer available in Telegram. It may have been deleted, or you lost access to the chat."
                     loadingText = null; return@LaunchedEffect
                 }
+                val (src, tf) = found
                 fileId = tf.id
                 playedFileIds.add(tf.id)
-                if (tf.id != f.fileId) ServiceLocator.db.movies().setFileId(f.id, tf.id)
+                if (src.id == f.id && tf.id != f.fileId) ServiceLocator.db.movies().setFileId(f.id, tf.id)
             }
             items += PlayerManager.PlayItem(f, local, fileId)
         }
@@ -201,8 +202,6 @@ fun PlayerScreen(vm: MainViewModel, id: String, onBack: () -> Unit, onNext: (Str
         loadingText = null
     }
 
-    var askSaver by remember { mutableStateOf(false) }
-    var preset by remember { mutableStateOf(prefs.soundPreset) }              // sound preset: off / voice / night
     var upNext by remember { mutableStateOf<Movie?>(null) }                   // "Up next" countdown card
     var upSec by remember { mutableIntStateOf(10) }
     var versions by remember { mutableStateOf<List<Movie>>(emptyList()) }     // other files of the same movie
@@ -213,27 +212,11 @@ fun PlayerScreen(vm: MainViewModel, id: String, onBack: () -> Unit, onNext: (Str
     val maxVol = remember { am.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1) }
     var volPct by remember { mutableFloatStateOf(am.getStreamVolume(AudioManager.STREAM_MUSIC).toFloat() / maxVol * 100f) }
     val enhancer = remember { arrayOfNulls<LoudnessEnhancer>(1) }
-    val eq = remember { arrayOfNulls<Equalizer>(1) }
-    /** Volume boost (above 100 %) + sound preset, using Android's built-in audio effects. */
+    /** Volume boost above 100 % (Android's built-in loudness effect). */
     fun applyEffects() {
         val boost = ((volPct.coerceIn(0f, 200f) - 100f).coerceAtLeast(0f) * 10f).toInt()      // 200 % = +10 dB
-        val gain = boost + when (preset) { "night" -> 800; "voice" -> 300; else -> 0 }
+        val gain = boost
         try { enhancer[0]?.let { e -> e.setTargetGain(gain); e.setEnabled(gain > 0) } } catch (_: Exception) { }
-        try {
-            eq[0]?.let { q ->
-                val range = q.bandLevelRange
-                for (b in 0 until q.numberOfBands.toInt()) {
-                    val hz = q.getCenterFreq(b.toShort()) / 1000
-                    val level = when (preset) {
-                        "voice" -> if (hz in 1000..4500) 500 else if (hz < 200) -300 else 0           // lift the speech range, trim rumble
-                        "night" -> if (hz < 150) -600 else if (hz < 400) -250 else if (hz in 1000..4500) 300 else 0   // less boom, clearer voices
-                        else -> 0
-                    }
-                    q.setBandLevel(b.toShort(), level.coerceIn(range[0].toInt(), range[1].toInt()).toShort())
-                }
-                q.setEnabled(preset != "off")
-            }
-        } catch (_: Exception) { }
     }
     fun applyVolume(pct: Float) {
         am.setStreamVolume(AudioManager.STREAM_MUSIC, (pct.coerceIn(0f, 200f).coerceAtMost(100f) / 100f * maxVol).roundToInt(), 0)
@@ -264,8 +247,6 @@ fun PlayerScreen(vm: MainViewModel, id: String, onBack: () -> Unit, onNext: (Str
             override fun onAudioSessionIdChanged(audioSessionId: Int) {
                 enhancer[0]?.release()
                 enhancer[0] = if (audioSessionId == C.AUDIO_SESSION_ID_UNSET) null else try { LoudnessEnhancer(audioSessionId) } catch (e: Exception) { null }
-                eq[0]?.release()
-                eq[0] = if (audioSessionId == C.AUDIO_SESSION_ID_UNSET) null else try { Equalizer(0, audioSessionId) } catch (e: Exception) { null }
                 applyVolume(volPct)
             }
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
@@ -278,21 +259,20 @@ fun PlayerScreen(vm: MainViewModel, id: String, onBack: () -> Unit, onNext: (Str
             override fun onPlayerError(e: PlaybackException) {
                 error = describe(e)
                 // Format ExoPlayer cannot handle: continue in the VLC engine from the same position.
-                if (ServiceLocator.prefs.value.engine == "auto" && PlayerRouting.isFormatError(e.errorCode)) {
+                if (ServiceLocator.prefs.value.engine == "auto" && AppState.forceStandard != cid() && PlayerRouting.isFormatError(e.errorCode)) {
                     AppState.switchTo = cid(); AppState.switchMs = player.currentPosition; onVlc(cid())
                 }
             }
         }
         player.addListener(l)
-        onDispose { player.removeListener(l); enhancer[0]?.release(); enhancer[0] = null; eq[0]?.release(); eq[0] = null }
+        onDispose { player.removeListener(l); enhancer[0]?.release(); enhancer[0] = null }
     }
 
-    // ---------- clock: position, A-B repeat ----------
+    // ---------- clock ----------
     LaunchedEffect(player) {
         while (true) {
             pos = player.currentPosition
             dur = player.duration.takeIf { it != C.TIME_UNSET && it > 0 } ?: 0L
-            if (abA >= 0 && abB > abA && pos >= abB) player.seekTo(abA)
             delay(200)
         }
     }
@@ -339,11 +319,7 @@ fun PlayerScreen(vm: MainViewModel, id: String, onBack: () -> Unit, onNext: (Str
             ctrl.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
             ctrl.hide(WindowInsetsCompat.Type.systemBars())
         }
-        activity?.requestedOrientation = when (prefs.rotation) {
-            "landscape" -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-            "portrait" -> ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-            else -> ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
-        }
+        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE      // opens in landscape like MX / VLC
         val cur = window?.attributes?.screenBrightness ?: -1f
         val sys = try { Settings.System.getInt(ctx.contentResolver, Settings.System.SCREEN_BRIGHTNESS) / 255f } catch (e: Exception) { 0.5f }
         bright = (if (cur >= 0) cur else sys).coerceIn(0.1f, 1f)
@@ -357,13 +333,13 @@ fun PlayerScreen(vm: MainViewModel, id: String, onBack: () -> Unit, onNext: (Str
             applyVolume(volPct)
         }
         onDispose {
-            AppState.playerOpen = false; AppState.playerPlaying = false
+            AppState.playerOpen = false; AppState.playerPlaying = false; AppState.forceStandard = null
             val d = player.duration
             if (d > 0) vm.saveProgress(cid(), player.currentPosition, d)
             PlayerManager.releaseIfCurrent(player)
             // Low on storage (under 5 GB) or "always": remove the streamed movie data as soon as the user leaves the player.
             val mode = ServiceLocator.prefs.value.clearAfterWatch
-            if (mode == "always" || (mode == "auto" && CacheManager.isLowStorage(ctx))) {
+            if (mode == "always" || lowAtStart || (mode == "auto" && CacheManager.isLowStorage(ctx))) {
                 val ids = playedFileIds.toList()
                 ServiceLocator.scope.launch { delay(1500); ids.forEach { if (!ServiceLocator.tg.isPinned(it)) ServiceLocator.tg.deleteFile(it) } }
             }
@@ -375,8 +351,8 @@ fun PlayerScreen(vm: MainViewModel, id: String, onBack: () -> Unit, onNext: (Str
         }
     }
     LaunchedEffect(vsize) {
-        if (prefs.rotation == "video" && vsize.width > 0) activity?.requestedOrientation =
-            if (vsize.width >= vsize.height) ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE else ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        // A tall (phone-recorded) video opens upright; the rotate button still works either way.
+        if (!manualRotate && vsize.width > 0 && vsize.height > vsize.width) activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
     }
 
     // background playback off → pause when the app leaves the screen
@@ -426,16 +402,11 @@ fun PlayerScreen(vm: MainViewModel, id: String, onBack: () -> Unit, onNext: (Str
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         // ---------- video ----------
-        val ratioMod = when (aspect) { "16:9" -> Modifier.aspectRatio(16f / 9f); "4:3" -> Modifier.aspectRatio(4f / 3f); else -> Modifier.fillMaxSize() }
-        Box(Modifier.align(Alignment.Center).then(ratioMod)) {
+        Box(Modifier.fillMaxSize()) {
             AndroidView(
                 factory = { c -> PlayerView(c).apply { useController = false; keepScreenOn = true; setShutterBackgroundColor(android.graphics.Color.BLACK); this.player = player } },
                 update = { v ->
-                    v.resizeMode = when (aspect) {
-                        "fill", "16:9", "4:3" -> AspectRatioFrameLayout.RESIZE_MODE_FILL
-                        "crop" -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-                        else -> AspectRatioFrameLayout.RESIZE_MODE_FIT
-                    }
+                    v.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
                     v.subtitleView?.apply {
                         visibility = if (extOn) android.view.View.GONE else android.view.View.VISIBLE
                         setFixedTextSize(TypedValue.COMPLEX_UNIT_SP, prefs.subSize)
@@ -563,17 +534,12 @@ fun PlayerScreen(vm: MainViewModel, id: String, onBack: () -> Unit, onNext: (Str
                 Row(Modifier.align(Alignment.TopCenter).fillMaxWidth().statusBarsPadding().padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color.White) }
                     Text(if (prefs.hideNotif) "" else playerTitle(parts.getOrNull(curIdx) ?: movie, parts.size, curIdx), color = Color.White, style = MaterialTheme.typography.titleMedium, maxLines = 1, modifier = Modifier.weight(1f))
-                    IconButton(onClick = {
-                        if (prefs.bandwidthSaver) { vm.set(K.bandwidthSaver, false); hud = "Data saver off" } else askSaver = true
-                    }) {
-                        Icon(if (prefs.bandwidthSaver) Icons.Default.DataSaverOn else Icons.Default.DataSaverOff, "Data saver",
-                            tint = if (prefs.bandwidthSaver) Color(0xFF7CE0A5) else Color.White)
-                    }
                     IconButton(onClick = { locked = true; show = false; hud = "Controls locked. Tap the screen to show the unlock button." }) { Icon(Icons.Default.LockOpen, "Lock controls", tint = Color.White) }
                     IconButton(onClick = { (activity as? MainActivity)?.enterPip() }) { Icon(Icons.Default.PictureInPictureAlt, "Picture in picture", tint = Color.White) }
                     IconButton(onClick = {
+                        manualRotate = true
                         activity?.requestedOrientation = if (config.orientation == Configuration.ORIENTATION_LANDSCAPE)
-                            ActivityInfo.SCREEN_ORIENTATION_PORTRAIT else ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                            ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT else ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
                     }) { Icon(Icons.Default.ScreenRotation, "Rotate", tint = Color.White) }
                     IconButton(onClick = { sheet = "more" }) { Icon(Icons.Default.Tune, "More", tint = Color.White) }
                 }
@@ -599,15 +565,13 @@ fun PlayerScreen(vm: MainViewModel, id: String, onBack: () -> Unit, onNext: (Str
                     )
                     Row {
                         Text(fmtTime(if (scrub != null) (scrub!! * dur).toLong() else pos), color = Color.White, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
-                        if (abA >= 0) Text("A${if (abB >= 0) "–B" else ""} repeat  ", color = Color(0xFFFFC857), style = MaterialTheme.typography.bodySmall)
                         Text(fmtTime(dur), color = Color.White, style = MaterialTheme.typography.bodySmall)
                     }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                        CtrlBtn(Icons.Default.Subtitles, "Subtitles") { sheet = "subs" }
-                        CtrlBtn(Icons.Default.Audiotrack, "Audio") { sheet = "audio" }
-                        CtrlBtn(Icons.Default.Speed, "${speed}x") { sheet = "speed" }
-                        CtrlBtn(aspectIcon(aspect), aspectLabel(aspect)) { aspect = nextAspect(aspect); hud = aspectHud(aspect); touchTick++ }
-                        CtrlBtn(Icons.Default.MoreHoriz, "More") { sheet = "more" }
+                        PlayerBtn(Icons.Default.Subtitles, "Subtitles") { sheet = "subs" }
+                        PlayerBtn(Icons.Default.Audiotrack, "Audio") { sheet = "audio" }
+                        PlayerBtn(Icons.Default.Speed, "${speed}x") { sheet = "speed" }
+                        PlayerBtn(Icons.Default.MoreHoriz, "More") { sheet = "more" }
                     }
                 }
             }
@@ -627,23 +591,12 @@ fun PlayerScreen(vm: MainViewModel, id: String, onBack: () -> Unit, onNext: (Str
             }
         }
 
-        if (askSaver) AlertDialog(
-            onDismissRequest = { askSaver = false },
-            title = { Text("Turn on Data saver?") },
-            text = {
-                Text("This uses less data but lowers quality: Telegram is read in smaller steps, so a slow connection may buffer more often, " +
-                    "and pictures are smaller. When a movie has several files, the smallest one is chosen the next time you press Play.")
-            },
-            confirmButton = { TextButton(onClick = { vm.set(K.bandwidthSaver, true); hud = "Data saver on"; askSaver = false }) { Text("Turn on") } },
-            dismissButton = { TextButton(onClick = { askSaver = false }) { Text("Cancel") } }
-        )
-
         // ---------- sheets ----------
         if (!pip) when (sheet) {
-            "subs" -> Sheet("Subtitles", { sheet = null }) {
-                Opt("Off", !extOn && textOpts.none { it.selected }) { extOn = false; disableText() }
-                textOpts.forEach { o -> Opt(o.label, !extOn && o.selected) { extOn = false; selectTrack(o) } }
-                if (ext.isNotEmpty()) Opt("$extName (loaded file)", extOn) { extOn = true; disableText() }
+            "subs" -> PlayerSheet("Subtitles", { sheet = null }) {
+                PlayerOpt("Off", !extOn && textOpts.none { it.selected }) { extOn = false; disableText() }
+                textOpts.forEach { o -> PlayerOpt(o.label, !extOn && o.selected) { extOn = false; selectTrack(o) } }
+                if (ext.isNotEmpty()) PlayerOpt("$extName (loaded file)", extOn) { extOn = true; disableText() }
                 OutlinedButton(onClick = { picker.launch(arrayOf("*/*")) }, Modifier.fillMaxWidth().padding(top = 6.dp)) { Icon(Icons.Default.FolderOpen, null); Spacer(Modifier.width(8.dp)); Text("Load subtitle file (.srt .vtt .ass)") }
                 Text("Subtitle delay: $subDelay ms", Modifier.padding(top = 12.dp), color = MaterialTheme.colorScheme.onSurface)
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -652,9 +605,9 @@ fun PlayerScreen(vm: MainViewModel, id: String, onBack: () -> Unit, onNext: (Str
                 }
                 Text("Delay applies to loaded subtitle files. Positive = subtitles appear later.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            "audio" -> Sheet("Audio", { sheet = null }) {
+            "audio" -> PlayerSheet("Audio", { sheet = null }) {
                 if (audioOpts.isEmpty()) Text("No selectable audio tracks.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                audioOpts.forEach { o -> Opt(o.label + if (!o.supported) "  (not supported)" else "", o.selected, o.supported) { selectTrack(o) } }
+                audioOpts.forEach { o -> PlayerOpt(o.label + if (!o.supported) "  (not supported)" else "", o.selected, o.supported) { selectTrack(o) } }
                 Text("Audio delay: $audioDelay ms", Modifier.padding(top = 12.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     listOf(-100, 100, 500).forEach { d ->
@@ -664,53 +617,29 @@ fun PlayerScreen(vm: MainViewModel, id: String, onBack: () -> Unit, onNext: (Str
                 }
                 Text("Use this when the voices are ahead of the picture (0–2000 ms).", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            "speed" -> Sheet("Playback speed", { sheet = null }) {
-                listOf(0.25f, 0.5f, 0.75f, 1f, 1.25f, 1.5f, 1.75f, 2f, 3f).forEach { s -> Opt("${s}x", speed == s) { speed = s; player.setPlaybackSpeed(s) } }
+            "speed" -> PlayerSheet("Playback speed", { sheet = null }) {
+                listOf(0.25f, 0.5f, 0.75f, 1f, 1.25f, 1.5f, 1.75f, 2f, 3f).forEach { s -> PlayerOpt("${s}x", speed == s) { speed = s; player.setPlaybackSpeed(s) } }
             }
-            "aspect" -> Sheet("Aspect ratio", { sheet = null }) {
-                listOf("fit" to "Fit to screen", "fill" to "Stretch to fill", "crop" to "Crop (zoom to fill)", "16:9" to "16:9", "4:3" to "4:3").forEach { (k, l) -> Opt(l, aspect == k) { aspect = k } }
-            }
-            "sound" -> Sheet("Sound", { sheet = null }) {
-                listOf("off" to "Off (original sound)", "voice" to "Voice boost: clearer dialogue", "night" to "Night mode: quieter explosions, clearer voices").forEach { (k, l) ->
-                    Opt(l, preset == k) { preset = k; vm.set(K.soundPreset, k); applyEffects() }
-                }
-                Text("Uses the phone's built-in audio effects. A few phones do not support them.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            "versions" -> Sheet("Switch version", { sheet = null }) {
+            "versions" -> PlayerSheet("Switch version", { sheet = null }) {
                 if (versions.isEmpty()) Text("No other version of this movie was found.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 versions.forEach { v ->
                     val t = fileTags(v).joinToString("  •  ").ifEmpty { "Video file" }
-                    Opt("$t  (${fmtSize(v.size)})", false) {
+                    PlayerOpt("$t  (${fmtSize(v.size)})", false) {
                         AppState.switchTo = v.id; AppState.switchMs = if (parts.size <= 1) player.currentPosition else 0L
                         sheet = null; onNext(v.id)          // opens the other file at the same minute
                     }
                 }
                 if (versions.isNotEmpty()) Text("Playback continues from the same time.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            "quality" -> Sheet("Video quality", { sheet = null }) {
-                Opt("Auto", true) { player.trackSelectionParameters = player.trackSelectionParameters.buildUpon().clearOverridesOfType(C.TRACK_TYPE_VIDEO).build() }
-                videoOpts.forEach { o -> Opt(o.label, o.selected, o.supported) { selectTrack(o) } }
-                if (videoOpts.size <= 1) Text("This movie is a single-quality file, so there is nothing to switch. (Choices appear for adaptive streams.)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            "sleep" -> PlayerSheet("Sleep timer", { sheet = null }) {
+                PlayerOpt("Off", sleepAt == 0L) { sleepAt = 0 }
+                listOf(15, 30, 45, 60, 90).forEach { m -> PlayerOpt("$m minutes", false) { sleepAt = System.currentTimeMillis() + m * 60_000L; vm.say("Sleep timer: $m min"); sheet = null } }
+                PlayerOpt("End of movie", sleepAt == -1L) { sleepAt = -1; sheet = null }
             }
-            "sleep" -> Sheet("Sleep timer", { sheet = null }) {
-                Opt("Off", sleepAt == 0L) { sleepAt = 0 }
-                listOf(15, 30, 45, 60, 90).forEach { m -> Opt("$m minutes", false) { sleepAt = System.currentTimeMillis() + m * 60_000L; vm.say("Sleep timer: $m min"); sheet = null } }
-                Opt("End of movie", sleepAt == -1L) { sleepAt = -1; sheet = null }
-            }
-            "more" -> Sheet("More", { sheet = null }) {
-                Opt("Set A (repeat start): ${if (abA >= 0) fmtTime(abA) else "—"}", abA >= 0) { abA = player.currentPosition; if (abB <= abA) abB = -1 }
-                Opt("Set B (repeat end): ${if (abB >= 0) fmtTime(abB) else "—"}", abB >= 0) { if (abA >= 0 && player.currentPosition > abA) abB = player.currentPosition else vm.say("Set A first, then B later in the movie") }
-                Opt("Clear A-B repeat", false) { abA = -1; abB = -1 }
-                Opt("Aspect ratio…", false) { sheet = "aspect" }
-                Opt("Sound: ${when (preset) { "voice" -> "Voice boost"; "night" -> "Night mode"; else -> "Off" }}…", preset != "off") { sheet = "sound" }
-                Opt("Switch version (other files of this movie)…", false) { sheet = "versions" }
-                Opt("Play with VLC engine (all formats)", false) { AppState.switchTo = cid(); AppState.switchMs = pos; sheet = null; onVlc(cid()) }
-                Opt("Data saver: ${if (prefs.bandwidthSaver) "ON" else "OFF"}", prefs.bandwidthSaver) {
-                    sheet = null
-                    if (prefs.bandwidthSaver) { vm.set(K.bandwidthSaver, false); hud = "Data saver off" } else askSaver = true
-                }
-                Opt("Sleep timer…", sleepAt != 0L) { sheet = "sleep" }
-                Opt("Video quality…", false) { sheet = "quality" }
+            "more" -> PlayerSheet("More", { sheet = null }) {
+                PlayerAction(Icons.Default.Bedtime, "Sleep timer${if (sleepAt != 0L) " (on)" else ""}") { sheet = "sleep" }
+                PlayerAction(Icons.Default.VideoLibrary, "Switch version (other files of this movie)") { sheet = "versions" }
+                PlayerAction(Icons.Default.Movie, "Play with the VLC engine (all formats)") { AppState.switchTo = cid(); AppState.switchMs = pos; sheet = null; onVlc(cid()) }
                 val m = movie
                 Text("Info", Modifier.padding(top = 12.dp), style = MaterialTheme.typography.titleMedium)
                 Text(buildString {
@@ -724,56 +653,3 @@ fun PlayerScreen(vm: MainViewModel, id: String, onBack: () -> Unit, onNext: (Str
 }
 
 private const val WindowManagerBrightnessNone = -1f
-
-private fun playerTitle(m: Movie?, parts: Int, idx: Int): String {
-    if (m == null) return ""
-    var t = m.displayTitle
-    if (m.isSeries) t += "  S%02dE%02d".format(m.season, m.episode)
-    if (parts > 1) t += "  (Part ${idx + 1}/$parts)"
-    return t
-}
-
-// Tap the aspect button to jump to the next mode (like MX Player / VLC); the icon and label change with it.
-private val aspectModes = listOf("fit", "fill", "crop", "16:9", "4:3")
-private fun nextAspect(a: String) = aspectModes[(aspectModes.indexOf(a) + 1) % aspectModes.size]
-private fun aspectIcon(a: String): ImageVector = when (a) {
-    "fill" -> Icons.Default.OpenInFull
-    "crop" -> Icons.Default.Crop
-    "16:9" -> Icons.Default.Crop169
-    "4:3" -> Icons.Default.Crop54
-    else -> Icons.Default.FitScreen
-}
-private fun aspectLabel(a: String) = when (a) { "fill" -> "Stretch"; "crop" -> "Crop"; "16:9" -> "16:9"; "4:3" -> "4:3"; else -> "Fit" }
-private fun aspectHud(a: String) = when (a) {
-    "fill" -> "Stretch to screen"; "crop" -> "Crop (fill screen)"; "16:9" -> "16:9"; "4:3" -> "4:3"; else -> "Fit to screen"
-}   // = BRIGHTNESS_OVERRIDE_NONE: go back to the system brightness
-
-@Composable
-private fun CtrlBtn(icon: ImageVector, label: String, onClick: () -> Unit) {
-    Column(Modifier.clickable(onClick = onClick).padding(horizontal = 10.dp, vertical = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Icon(icon, label, tint = Color.White)
-        Text(label, color = Color.White, style = MaterialTheme.typography.bodySmall)
-    }
-}
-
-@Composable
-private fun Sheet(title: String, onDismiss: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Surface(Modifier.widthIn(max = 440.dp).fillMaxWidth(0.92f).heightIn(max = 380.dp), shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surface) {
-            Column(Modifier.padding(16.dp)) {
-                Text(title, style = MaterialTheme.typography.titleMedium)
-                Spacer(Modifier.height(8.dp))
-                Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()), content = content)
-            }
-        }
-    }
-}
-
-@Composable
-private fun Opt(label: String, selected: Boolean, enabled: Boolean = true, onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth().clickable(enabled = enabled, onClick = onClick).padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-        RadioButton(selected, onClick = if (enabled) onClick else null, enabled = enabled)
-        Spacer(Modifier.width(6.dp))
-        Text(label, color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant)
-    }
-}
