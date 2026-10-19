@@ -7,20 +7,21 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
-// Optional keys come from Codemagic environment variables or local.properties (your PC).
-// They are OPTIONAL: if empty, the app asks for them on the login screen and stores them encrypted.
 val localProps = Properties().apply {
     val f = rootProject.file("local.properties")
     if (f.exists()) f.inputStream().use { load(it) }
 }
 fun secret(name: String): String = (System.getenv(name) ?: localProps.getProperty(name) ?: "").trim()
 
-// Release signing uses ONLY the keystore attached in Codemagic (android_signing in codemagic.yaml).
-// Codemagic provides CM_KEYSTORE_PATH, CM_KEYSTORE_PASSWORD, CM_KEY_ALIAS, CM_KEY_PASSWORD. No default/debug key.
 val ksPath: String? = System.getenv("CM_KEYSTORE_PATH")?.takeIf { it.isNotBlank() }
 
-// Build only one CPU type:  ./gradlew assembleRelease -Pabi=arm64-v8a
-// Build all + universal:    ./gradlew assembleRelease            (default)
+// version comes from gradle.properties (appVersion=1.0); the version code is derived from it
+val appVersion: String = (project.findProperty("appVersion") as String?)?.trim()?.ifEmpty { null } ?: "1.0"
+fun codeFor(v: String): Int {
+    val n = v.split(".").map { it.filter(Char::isDigit).toIntOrNull() ?: 0 }
+    return n.getOrElse(0) { 0 } * 1_000_000 + n.getOrElse(1) { 0 } * 1_000 + n.getOrElse(2) { 0 }
+}
+
 val abiProp: String? = (project.findProperty("abi") as String?)?.trim()?.ifEmpty { null }
 val isBundleBuild = gradle.startParameter.taskNames.any { it.contains("bundle", ignoreCase = true) }
 
@@ -32,13 +33,12 @@ android {
         applicationId = "app.nwmovie"
         minSdk = 24
         targetSdk = 35
-        versionCode = (System.getenv("BUILD_NUMBER")?.toIntOrNull() ?: 1)
-        versionName = "1.0.0"
+        versionCode = codeFor(appVersion)
+        versionName = appVersion
         val tgId = secret("TG_API_ID").ifEmpty { "0" }.filter { it.isDigit() }.ifEmpty { "0" }
         buildConfigField("int", "TG_API_ID", tgId)
         buildConfigField("String", "TG_API_HASH", "\"${secret("TG_API_HASH")}\"")
         buildConfigField("String", "TMDB_API_KEY", "\"${secret("TMDB_API_KEY")}\"")
-        // In-app updates + anti-tamper (all optional; empty = feature off)
         buildConfigField("String", "UPDATE_URL", "\"${secret("UPDATE_URL")}\"")
         buildConfigField("String", "UPDATE_PUBKEY", "\"${secret("UPDATE_PUBKEY")}\"")
         buildConfigField("String", "CERT_SHA256", "\"${secret("APP_CERT_SHA256")}\"")
@@ -111,7 +111,7 @@ dependencies {
     implementation("androidx.navigation:navigation-compose:2.8.4")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
 
-    // Player (free, Apache-2.0)
+    // Player
     val media3 = "1.5.1"
     implementation("androidx.media3:media3-exoplayer:$media3")
     implementation("androidx.media3:media3-exoplayer-hls:$media3")
@@ -120,10 +120,10 @@ dependencies {
     implementation("androidx.media3:media3-session:$media3")
     implementation("androidx.media3:media3-common:$media3")
 
-    // Telegram TDLib (prebuilt Android binaries, served from JitPack - see settings.gradle.kts)
+    // Telegram TDLib
     implementation("com.github.tdlibx:td:1.8.56")
 
-    // VLC engine: plays every format (AVI, WMV, FLV, DTS, AC3…). LGPL licence, free.
+    // VLC engine
     implementation("org.videolan.android:libvlc-all:3.6.0")
 
     implementation("io.coil-kt:coil-compose:2.7.0")
@@ -138,8 +138,6 @@ dependencies {
 gradle.taskGraph.whenReady {
     val releaseBuild = allTasks.any { it.name == "assembleRelease" }
     if (releaseBuild && ksPath == null) {
-        throw GradleException(
-            "Release keystore not found. In codemagic.yaml the workflow needs  android_signing: - <your keystore reference name>  (here: nightwalker_keystore, the keystore you uploaded to Codemagic)."
-        )
+        throw GradleException("Release keystore not found (CM_KEYSTORE_PATH is empty).")
     }
 }
