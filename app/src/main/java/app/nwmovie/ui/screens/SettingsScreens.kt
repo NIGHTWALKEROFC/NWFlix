@@ -225,6 +225,7 @@ fun SettingsPages(vm: MainViewModel, name: String, onBack: () -> Unit, onPage: (
             SwitchRow("Show movie titles under posters", null, p.showTitles) { vm.set(K.showTitles, it) }
             SwitchRow("Movie previews", "Plays short clips from random scenes on a movie page. Off while Data saver is on.", p.previews) { vm.set(K.previews, it) }
             SwitchRow("Previews on mobile data", "Off = on mobile data a Preview button appears and you tap it when you want one.", p.previewMobile) { vm.set(K.previewMobile, it) }
+            SwitchRow("Hide files without movie details", "They are left out of Home and Explore. Find them in Explore → Unmatched, or by searching.", p.hideUnmatched) { vm.set(K.hideUnmatched, it) }
         }
 
         "player" -> Page("Player Settings", onBack) {
