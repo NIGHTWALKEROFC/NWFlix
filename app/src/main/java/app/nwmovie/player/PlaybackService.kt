@@ -21,7 +21,9 @@ class PlaybackService : MediaSessionService() {
         session = MediaSession.Builder(this, PlayerManager.player()).setSessionActivity(open).build()
     }
 
-    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = session
+    // only this app and the system (notification, lock screen, headset) may control playback
+    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? =
+        if (controllerInfo.packageName == packageName || controllerInfo.isTrusted) session else null
 
     override fun onTaskRemoved(rootIntent: Intent?) {
         val p = session?.player
