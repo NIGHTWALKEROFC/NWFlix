@@ -28,6 +28,7 @@ class Indexer(private val tg: Tg, private val tmdb: TmdbClient, private val db: 
             val known = db.movies().keys().toSet()
             val raws = tg.scan(known, full) { n -> state.value = state.value.copy(found = n) }
             val movieRaws = raws.filter { FilenameParser.looksLikeMovie(it) }
+            FilenameParser.learnHandles(db.movies().allOnce().map { it.fileName } + movieRaws.map { it.name })
             val fresh = movieRaws.filter { "${it.chatId}_${it.messageId}" !in known }.mapNotNull { toMovie(it) }
             db.movies().insertAll(fresh)
             // Older rows have no caption yet: fill it in so each file can show its quality/language details.
@@ -79,7 +80,7 @@ class Indexer(private val tg: Tg, private val tmdb: TmdbClient, private val db: 
     private suspend fun matchOne(m: Movie) {
         val fresh = FilenameParser.parse(m.fileName, m.caption)
         val year = fresh?.year?.takeIf { it > 0 } ?: m.parsedYear
-        val names = listOfNotNull(fresh?.title, m.parsedTitle).flatMap { FilenameParser.titleVariants(it) }.distinct().take(5)
+        val names = listOfNotNull(fresh?.title, m.parsedTitle).flatMap { FilenameParser.titleVariants(it) }.distinct().take(6)
         var hit: TmdbClient.Hit? = null
         for (n in names) {
             hit = TmdbClient.pickBest(n, year, tmdb.search(n, year, m.isSeries))
