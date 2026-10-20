@@ -94,7 +94,7 @@ object PlayerManager {
         val hide = ServiceLocator.prefs.value.hideNotif
         val list = items.map { it2 ->
             val m = it2.movie
-            val meta = MediaMetadata.Builder().setTitle(if (hide) "NWMovie" else m.displayTitle).build()
+            val meta = MediaMetadata.Builder().setTitle(if (hide) "NWFlix" else m.displayTitle).build()
             if (it2.localPath != null) {
                 MediaItem.Builder().setMediaId(m.id).setUri(Uri.fromFile(File(it2.localPath))).setMediaMetadata(meta).build()
             } else {
