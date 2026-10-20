@@ -30,7 +30,7 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "app.nwmovie"
+        applicationId = "com.nightwalker.nwflix"
         minSdk = 24
         targetSdk = 35
         versionCode = codeFor(appVersion)
