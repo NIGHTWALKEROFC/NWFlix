@@ -25,7 +25,41 @@ object FilenameParser {
     private val WWW_PREFIX = Regex("(?i)^\\s*(?:https?://)?www\\.[a-z0-9-]+\\.[a-z]{2,6}\\b[\\s._-]*")
     private val DIGIT_SITE_PREFIX = Regex("(?i)^\\s*[a-z0-9-]*\\d[a-z0-9-]*\\.(?:com|net|org|xyz|cc|ws|lol|club|site|vip|link|ink|io)\\b[\\s._-]*")
     private val SITE_DASH_PREFIX = Regex("(?i)^\\s*[a-z0-9-]+\\.(?:com|net|org|xyz|cc|ws|co|in|me|tv)\\s+[-–]\\s+")
-    private val HANDLE_PREFIX = Regex("^\\s*@[A-Za-z0-9_]+[\\s._-]*")
+    private val HANDLE_SPACED = Regex("^\\s*@[A-Za-z0-9_]+(?:\\s+[-–:|]\\s*|\\s+)")
+    private val TOKEN = Regex("[^_\\s.\\-]+")
+
+    // Channel tags such as "@Trending_Tamizhaas_" in front of file names. A tag can contain underscores itself, so it is
+    // learned from the library: the shortest start shared by several different files that then continue differently.
+    @Volatile private var handles: List<List<String>> = emptyList()
+
+    fun learnHandles(names: Collection<String>) {
+        val stems = names.map { stripExt(it).trim() }.filter { it.startsWith("@") }.distinct()
+            .map { s -> TOKEN.findAll(s).map { it.value.lowercase() }.take(7).toList() }.filter { it.size >= 2 }
+        val count = HashMap<String, Int>()
+        val next = HashMap<String, MutableSet<String>>()
+        for (t in stems) for (k in 1..minOf(5, t.size - 1)) {
+            val key = t.take(k).joinToString("_")
+            count[key] = (count[key] ?: 0) + 1
+            next.getOrPut(key) { mutableSetOf() }.add(t[k])
+        }
+        val found = HashSet<List<String>>()
+        for (t in stems) for (k in 1..minOf(5, t.size - 1)) {
+            val key = t.take(k).joinToString("_")
+            if ((count[key] ?: 0) >= 3 && (next[key]?.size ?: 0) >= 3) { found += t.take(k); break }
+        }
+        handles = found.sortedByDescending { it.size }
+    }
+
+    private fun stripHandle(raw: String): String {
+        val t = raw.trimStart()
+        if (!t.startsWith("@")) return raw
+        val toks = TOKEN.findAll(t).take(6).toList()
+        for (h in handles) {
+            if (toks.size > h.size && h.indices.all { toks[it].value.equals(h[it], ignoreCase = true) })
+                return t.substring(toks[h.size - 1].range.last + 1).trimStart('_', ' ', '.', '-')
+        }
+        return t.replace(HANDLE_SPACED, "")
+    }
     private val LEADING_BRACKETS = Regex("^\\s*(?:\\[[^\\]]*\\]|\\{[^}]*\\})[\\s._-]*")
     private val TAG_WORD = Regex("^[A-Z]{2,5}[\\s_-]+(?=\\S)")
     private val TAG_GLUED = Regex("^[A-Z]{1,4}(?=[A-Z][a-z]{2,})")
@@ -35,7 +69,7 @@ object FilenameParser {
         repeat(4) {
             val before = t
             t = t.replace(WWW_PREFIX, "").replace(DIGIT_SITE_PREFIX, "").replace(SITE_DASH_PREFIX, "")
-                .replace(HANDLE_PREFIX, "").replace(LEADING_BRACKETS, "")
+                .let { stripHandle(it) }.replace(LEADING_BRACKETS, "")
             if (t == before) return t
         }
         return t
@@ -43,12 +77,20 @@ object FilenameParser {
 
     /** The title as parsed, then a few cleaned-up guesses (leading tag like "TM", first word dropped…) to try on TMDB one by one. */
     fun titleVariants(title: String): List<String> {
-        val out = linkedSetOf(title.trim())
-        out += title.replace(TAG_WORD, "").trim()
-        out += title.replace(TAG_GLUED, "").trim()
-        val words = title.trim().split(' ').filter { it.isNotBlank() }
-        if (words.size >= 3 && words[0].length <= 6) out += words.drop(1).joinToString(" ")
-        if (words.size >= 4 && words[0].length <= 6 && words[1].length <= 6) out += words.drop(2).joinToString(" ")
+        val t = title.trim()
+        val words = t.split(' ').filter { it.isNotBlank() }
+        val out = linkedSetOf<String>()
+        if (t.startsWith("@")) {
+            // unknown channel tag: try the title with 1, 2, 3 or 4 leading words removed
+            for (k in 1..4) if (words.size > k) out += words.drop(k).joinToString(" ")
+            out += t.trimStart('@')
+        } else {
+            out += t
+            out += t.replace(TAG_WORD, "").trim()
+            out += t.replace(TAG_GLUED, "").trim()
+            if (words.size >= 3 && words[0].length <= 6) out += words.drop(1).joinToString(" ")
+            if (words.size >= 4 && words[0].length <= 6 && words[1].length <= 6) out += words.drop(2).joinToString(" ")
+        }
         return out.filter { it.length >= 2 }
     }
 
