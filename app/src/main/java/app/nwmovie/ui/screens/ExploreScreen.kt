@@ -35,6 +35,8 @@ fun ExploreScreen(vm: MainViewModel, onOpen: (String) -> Unit, onPerson: (String
     val prefs by vm.prefs.collectAsState()
     val searchOpen by vm.searchOpen.collectAsState()
     val sort by vm.sort.collectAsState()
+    val scan by vm.scan.collectAsState()
+    val pendingGenre by vm.exploreGenre.collectAsState()
     var genre by rememberSaveable { mutableStateOf("All") }
     var query by rememberSaveable { mutableStateOf("") }
     var year by rememberSaveable { mutableStateOf("Any") }
@@ -47,9 +49,11 @@ fun ExploreScreen(vm: MainViewModel, onOpen: (String) -> Unit, onPerson: (String
     var surpriseOpen by remember { mutableStateOf(false) }
     var focused by remember { mutableStateOf(false) }
     val focus = LocalFocusManager.current
+    LaunchedEffect(pendingGenre) { pendingGenre?.let { genre = it; vm.exploreGenre.value = null } }
+    val unmatchedCount = remember(groups) { groups.count { !it.view.matched } }
 
     val genres = remember(groups) {
-        listOf("All") + groups.flatMap { it.view.genreList }.groupingBy { it }.eachCount().entries.sortedByDescending { it.value }.map { it.key }
+        listOf("All") + (if (unmatchedCount > 0) listOf("Unmatched") else emptyList()) + groups.flatMap { it.view.genreList }.groupingBy { it }.eachCount().entries.sortedByDescending { it.value }.map { it.key }
     }
     val languages = remember(groups) { groups.flatMap { it.languages }.groupingBy { it }.eachCount().entries.sortedByDescending { it.value }.map { it.key } }
     val people = remember(groups) { groups.flatMap { g -> g.people.map { it.first } }.distinct() }
@@ -58,12 +62,14 @@ fun ExploreScreen(vm: MainViewModel, onOpen: (String) -> Unit, onPerson: (String
     // The filtering/sorting runs on a background thread so the screen never freezes, even with thousands of files.
     var shown by remember { mutableStateOf(emptyList<MovieGroup>()) }
     var ready by remember { mutableStateOf(false) }
-    LaunchedEffect(groups, genre, query, year, rating, status, type, language, sort) {
+    LaunchedEffect(groups, genre, query, year, rating, status, type, language, sort, prefs.hideUnmatched) {
         val q = query.trim().lowercase()
         shown = withContext(Dispatchers.Default) {
             groups.filter { g ->
                 val m = g.view
-                (genre == "All" || genre in m.genreList) &&
+                (if (genre == "Unmatched") !m.matched
+                else (m.matched || !prefs.hideUnmatched || q.isNotEmpty() || m.lastPlayedAt > 0 || m.watchlist || m.favorite) &&
+                    (genre == "All" || genre in m.genreList)) &&
                     (q.isEmpty() || g.searchText.contains(q)) &&
                     (type == "Any" || (type == "Series") == g.isSeries) &&
                     (language == "Any" || language in g.languages) &&
@@ -110,7 +116,7 @@ fun ExploreScreen(vm: MainViewModel, onOpen: (String) -> Unit, onPerson: (String
                     )
                 }
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(vertical = 6.dp)) {
-                    items(genres) { g -> FilterChip(selected = g == genre, onClick = { genre = g }, label = { Text(g) }) }
+                    items(genres) { g -> FilterChip(selected = g == genre, onClick = { genre = g }, label = { Text(if (g == "Unmatched") "Unmatched · $unmatchedCount" else g) }) }
                 }
                 Row(Modifier.padding(bottom = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilledTonalButton(onClick = { sortOpen = true }, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)) {
@@ -126,6 +132,19 @@ fun ExploreScreen(vm: MainViewModel, onOpen: (String) -> Unit, onPerson: (String
                 }
             }
         }
+        if (genre == "Unmatched") item(span = { GridItemSpan(maxLineSpan) }) {
+            Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f), modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(14.dp)) {
+                    Text(
+                        "These files have no movie details yet. Open one and use “Wrong or missing match?” to pick the right movie, or let the app try again.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    if (scan.running) Text(scan.phase.ifBlank { "Working…" }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    else OutlinedButton(onClick = { vm.rescan(true) }) { Text("Try matching again") }
+                }
+            }
+        }
         if (!ready) item(span = { GridItemSpan(maxLineSpan) }) {
             Box(Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
         } else if (shown.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) {
@@ -136,7 +155,7 @@ fun ExploreScreen(vm: MainViewModel, onOpen: (String) -> Unit, onPerson: (String
         }
     }
 
-    if (surpriseOpen) SurpriseDialog(groups, onOpen) { surpriseOpen = false }
+    if (surpriseOpen) SurpriseDialog(groups.filter { it.view.matched }, onOpen) { surpriseOpen = false }
 
     if (sortOpen) ModalBottomSheet(onDismissRequest = { sortOpen = false }) {
         Text("Sort by", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
@@ -188,7 +207,7 @@ private fun Suggestions(
             } else {
                 val titles = remember(q, groups) { groups.filter { it.view.displayTitle.contains(q, true) }.take(4) }
                 val ppl = remember(q, people) { people.filter { it.contains(q, true) }.take(4) }
-                val gen = remember(q, genres) { genres.filter { it != "All" && it.contains(q, true) }.take(2) }
+                val gen = remember(q, genres) { genres.filter { it != "All" && it != "Unmatched" && it.contains(q, true) }.take(2) }
                 titles.forEach { g -> SuggestRow(Icons.Default.Movie, g.view.displayTitle + if (g.view.displayYear > 0) "  (${g.view.displayYear})" else "") { onOpenTitle(g) } }
                 ppl.forEach { n -> SuggestRow(Icons.Default.Person, n) { onPerson(n) } }
                 gen.forEach { n -> SuggestRow(Icons.Default.Category, "Genre: $n") { onGenre(n) } }
