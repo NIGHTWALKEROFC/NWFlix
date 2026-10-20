@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # usage: make-update.sh <apk folder> <version> "<notes>" <download base url> [mandatory]
-# e.g.   make-update.sh apks 1.1 "Bug fixes" https://github.com/you/site/releases/download/v1.1/
+# e.g.   make-update.sh apks 1.1 "Bug fixes" https://github.com/you/NWFlix-Website/releases/download/v1.1/
 set -euo pipefail
 DIR="${1:?apk folder}"; NAME="${2:?version, e.g. 1.1}"; NOTES="${3:-}"; BASE="${4:?download base url}"; MANDATORY="${5:-}"
 KEY="${UPDATE_PRIVATE_KEY:-update_private.pem}"
