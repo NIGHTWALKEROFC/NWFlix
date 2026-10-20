@@ -13,7 +13,7 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.sp
 import app.nwmovie.data.Prefs
 
-val Accents = listOf(0xFF7C6CFF, 0xFFD25CC8, 0xFFFF9F45, 0xFF4CC38A, 0xFF5B8CFF, 0xFFF0607E).map { Color(it) }
+val Accents = listOf(0xFF8B6CFF, 0xFF5B6CFF, 0xFFD25CC8, 0xFFFF9F45, 0xFF4CC38A, 0xFFF0607E).map { Color(it) }
 
 private val Serif = FontFamily.Serif
 
@@ -38,12 +38,12 @@ fun NWTheme(p: Prefs, content: @Composable () -> Unit) {
         surface = Color.White, onSurface = Color(0xFF0E1330), surfaceVariant = Color(0xFFE6E8F5),
         onSurfaceVariant = Color(0xFF5B6180), outline = Color(0xFFCBCEE3), secondaryContainer = accent.copy(alpha = 0.18f)
     ) else {
-        val bg = if (p.theme == "amoled") Color.Black else Color(0xFF070B1A)
-        val surf = if (p.theme == "amoled") Color(0xFF0B0B10) else Color(0xFF0F152B)
+        val bg = if (p.theme == "amoled") Color.Black else Color(0xFF07060F)
+        val surf = if (p.theme == "amoled") Color(0xFF0B0A12) else Color(0xFF100E1F)
         darkColorScheme(
-            primary = accent, onPrimary = Color.White, background = bg, onBackground = Color(0xFFECEEFF),
-            surface = surf, onSurface = Color(0xFFECEEFF), surfaceVariant = Color(0xFF1A2140),
-            onSurfaceVariant = Color(0xFF9AA0C4), outline = Color(0xFF2B345E), secondaryContainer = accent.copy(alpha = 0.25f)
+            primary = accent, onPrimary = Color.White, background = bg, onBackground = Color(0xFFEDEBFF),
+            surface = surf, onSurface = Color(0xFFEDEBFF), surfaceVariant = Color(0xFF1D1A38),
+            onSurfaceVariant = Color(0xFFA7A3CC), outline = Color(0xFF302B57), secondaryContainer = accent.copy(alpha = 0.25f)
         )
     }
     val d = LocalDensity.current
