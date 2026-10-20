@@ -1,6 +1,6 @@
 <resources>
     <style name="Theme.NWMovie" parent="android:Theme.Material.NoActionBar">
-        <item name="android:windowBackground">#070B1A</item>
+        <item name="android:windowBackground">#07060F</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
     </style>
