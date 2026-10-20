@@ -43,7 +43,7 @@ fun LoginScreen(vm: MainViewModel) {
         Spacer(Modifier.height(24.dp))
         BrandMark(64)
         Spacer(Modifier.height(10.dp))
-        Text("NWMOVIE", style = MaterialTheme.typography.titleLarge, letterSpacing = 6.sp)
+        Text("NWFLIX", style = MaterialTheme.typography.titleLarge, letterSpacing = 6.sp)
         Spacer(Modifier.height(24.dp))
         Text("Connect with Telegram", style = MaterialTheme.typography.headlineMedium)
         Spacer(Modifier.height(6.dp))
@@ -55,7 +55,7 @@ fun LoginScreen(vm: MainViewModel) {
 
         when (val a = auth) {
             is Tg.Auth.NeedKeys -> Text(
-                "This copy of NWMovie isn't set up correctly. Please install the latest version from the developer.",
+                "This copy of NWFlix isn't set up correctly. Please install the latest version from the developer.",
                 color = MaterialTheme.colorScheme.error, textAlign = TextAlign.Center
             )
             is Tg.Auth.WaitPhone -> {
@@ -104,7 +104,7 @@ fun LoginScreen(vm: MainViewModel) {
         Info(Icons.Default.VisibilityOff, "Private", "Nothing leaves your device except Telegram and TMDB requests.")
         LoginGuideHost(guide, prefs.uiLang, { vm.set(K.uiLang, it) }) { guide = false }
         Spacer(Modifier.height(12.dp))
-        Text("Only use NWMovie with content you are allowed to watch.", style = MaterialTheme.typography.bodySmall,
+        Text("Only use NWFlix with content you are allowed to watch.", style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
     }
 }
