@@ -54,9 +54,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 if (a is Tg.Auth.Ready) {
                     userName.value = sl.tg.me()
                     // One deep scan after an update that changes what is recognised (TV episodes, captions, parts). Normal opens are incremental.
-                    val deep = prefs.value.scanVersion < 4
+                    val deep = prefs.value.scanVersion < 5
                     rescan(deep)
-                    if (deep) sl.settings.set(K.scanVersion, 4)
+                    if (deep) sl.settings.set(K.scanVersion, 5)
                     if (!prefs.value.dirBackfill) {                // one time: add directors to older saved details
                         sl.settings.set(K.dirBackfill, true)
                         try { sl.indexer.backfillDirectors() } catch (_: Exception) { }
