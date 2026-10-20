@@ -31,14 +31,14 @@ object NetPolicy {
     /** Returns a human readable reason if streaming must be blocked, else null. */
     fun streamBlock(p: Prefs): String? = when {
         !online.value -> "You're offline. Check your connection."
-        cellular.value && !p.mobileData -> "Mobile data is turned off for NWMovie (Settings → Network & Download)."
+        cellular.value && !p.mobileData -> "Mobile data is turned off for NWFlix (Settings → Network & Download)."
         metered.value && p.wifiOnlyStream -> "Wi-Fi only streaming is on. Connect to Wi-Fi or turn it off in Settings → Network & Download."
         else -> null
     }
 
     fun downloadBlock(p: Prefs): String? = when {
         !online.value -> "You're offline. Check your connection."
-        cellular.value && !p.mobileData -> "Mobile data is turned off for NWMovie (Settings → Network & Download)."
+        cellular.value && !p.mobileData -> "Mobile data is turned off for NWFlix (Settings → Network & Download)."
         metered.value && p.wifiOnlyDownload -> "Downloads are Wi-Fi only. Connect to Wi-Fi or change it in Settings → Network & Download."
         else -> null
     }
