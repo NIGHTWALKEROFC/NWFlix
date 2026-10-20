@@ -43,10 +43,10 @@ fun SetupScreen(vm: MainViewModel, onDone: () -> Unit) {
         Spacer(Modifier.height(6.dp))
         Text(
             tr(lang,
-                "While you use NWMovie, it keeps some data on your phone for a while: posters, movie information and small parts of the movies you watched. " +
+                "While you use NWFlix, it keeps some data on your phone for a while: posters, movie information and small parts of the movies you watched. " +
                     "This is called cache. It makes the app open faster and saves internet data, but it takes space on your phone. " +
                     "Your downloaded movies are never deleted by this.",
-                "NWMovie ഉപയോഗിക്കുമ്പോൾ പോസ്റ്ററുകൾ, സിനിമയുടെ വിവരങ്ങൾ, കണ്ട സിനിമകളുടെ ചെറിയ ഭാഗങ്ങൾ എന്നിവ കുറച്ചുനേരം ഫോണിൽ സൂക്ഷിക്കും. " +
+                "NWFlix ഉപയോഗിക്കുമ്പോൾ പോസ്റ്ററുകൾ, സിനിമയുടെ വിവരങ്ങൾ, കണ്ട സിനിമകളുടെ ചെറിയ ഭാഗങ്ങൾ എന്നിവ കുറച്ചുനേരം ഫോണിൽ സൂക്ഷിക്കും. " +
                     "ഇതിനെയാണ് ക്യാഷ് എന്ന് പറയുന്നത്. ഇത് ആപ്പ് വേഗത്തിൽ തുറക്കാനും ഇന്റർനെറ്റ് ലാഭിക്കാനും സഹായിക്കും, പക്ഷേ ഫോണിൽ സ്ഥലം എടുക്കും. " +
                     "ഡൗൺലോഡ് ചെയ്ത സിനിമകൾ ഇതുകൊണ്ട് ഒരിക്കലും ഡിലീറ്റ് ആകില്ല."),
             style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -70,8 +70,8 @@ fun SetupScreen(vm: MainViewModel, onDone: () -> Unit) {
                 Spacer(Modifier.width(12.dp))
                 Text(
                     tr(lang, "Free space on your phone: ${fmtSize(free)}.", "നിങ്ങളുടെ ഫോണിൽ ബാക്കിയുള്ള സ്ഥലം: ${fmtSize(free)}.") +
-                        if (low) tr(lang, "\nYour storage is low. 1 day is best, and NWMovie will also clear the movie data right after you finish watching.",
-                            "\nസ്ഥലം കുറവാണ്. 1 ദിവസം തിരഞ്ഞെടുക്കുന്നതാണ് നല്ലത്. സിനിമ കണ്ടു കഴിഞ്ഞാൽ ഉടൻ തന്നെ ആ ഡാറ്റ NWMovie ഡിലീറ്റ് ചെയ്യും.") else "",
+                        if (low) tr(lang, "\nYour storage is low. 1 day is best, and NWFlix will also clear the movie data right after you finish watching.",
+                            "\nസ്ഥലം കുറവാണ്. 1 ദിവസം തിരഞ്ഞെടുക്കുന്നതാണ് നല്ലത്. സിനിമ കണ്ടു കഴിഞ്ഞാൽ ഉടൻ തന്നെ ആ ഡാറ്റ NWFlix ഡിലീറ്റ് ചെയ്യും.") else "",
                     style = MaterialTheme.typography.bodyMedium)
             }
         }
