@@ -2,21 +2,20 @@ package app.nwmovie.ui
 
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -24,6 +23,7 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.*
 import app.nwmovie.MainViewModel
+import app.nwmovie.R
 import app.nwmovie.data.telegram.Tg
 import app.nwmovie.ui.screens.*
 import kotlinx.coroutines.delay
@@ -51,6 +51,13 @@ fun NWRoot(vm: MainViewModel) {
 
     LaunchedEffect(Unit) { vm.toast.collect { snack.showSnackbar(it) } }
 
+    // One way to move between the main screens, whatever is on the back stack (profile button, search, "see all"…).
+    fun goTab(r: String) {
+        if (r == "home") {
+            if (!nav.popBackStack("home", false)) nav.navigate("home") { popUpTo(0); launchSingleTop = true }
+        } else nav.navigate(r) { popUpTo("home") { saveState = true }; launchSingleTop = true; restoreState = true }
+    }
+
     // Telegram needs (re)login at any time (first run, session expired, logout) → login screen.
     LaunchedEffect(auth, route) {
         if (route != null && route != "splash" && route != "login" &&
@@ -67,12 +74,7 @@ fun NWRoot(vm: MainViewModel) {
                 tabs.forEach { t ->
                     NavigationBarItem(
                         selected = route == t.route,
-                        onClick = {
-                            nav.navigate(t.route) {
-                                popUpTo("home") { saveState = true }
-                                launchSingleTop = true; restoreState = true
-                            }
-                        },
+                        onClick = { goTab(t.route) },
                         icon = { Icon(t.icon, t.label) },
                         label = { Text(t.label, style = MaterialTheme.typography.bodySmall) }
                     )
@@ -98,11 +100,11 @@ fun NWRoot(vm: MainViewModel) {
             composable("setup") { SetupScreen(vm, onDone = { nav.navigate("home") { popUpTo(0) } }) }
             composable("home") {
                 HomeScreen(vm, onOpen = { nav.navigate("detail/$it") },
-                    onSearch = { vm.searchOpen.value = true; nav.navigate("explore") },
-                    onSettings = { nav.navigate("settings") },
+                    onSearch = { vm.searchOpen.value = true; goTab("explore") },
+                    onSettings = { goTab("settings") },
                     onSeeAll = { s ->
                         vm.sort.value = s
-                        nav.navigate("explore") { popUpTo("home") { saveState = true }; launchSingleTop = true; restoreState = true }
+                        goTab("explore")
                     })
             }
             composable("explore") { ExploreScreen(vm, onOpen = { nav.navigate("detail/$it") }, onPerson = { nav.navigate("person/${android.net.Uri.encode(it)}") }) }
@@ -134,33 +136,27 @@ fun NWRoot(vm: MainViewModel) {
 
 @Composable
 fun BrandMark(size: Int = 84) {
-    val accent = MaterialTheme.colorScheme.primary
-    Canvas(Modifier.size(size.dp)) {
-        drawRoundRect(Brush.linearGradient(listOf(accent, accent.copy(alpha = 0.55f))), size = Size(this.size.width, this.size.height),
-            cornerRadius = CornerRadius(this.size.width * 0.26f))
-        val w = this.size.width
-        val p = Path().apply {
-            moveTo(w * 0.38f, w * 0.27f); lineTo(w * 0.38f, w * 0.73f); lineTo(w * 0.76f, w * 0.5f); close()
-        }
-        drawPath(p, Color.White)
-    }
+    Image(
+        painterResource(R.drawable.nwflix_mark), "NWFlix",
+        Modifier.size(size.dp).clip(RoundedCornerShape((size * 0.24f).dp))
+    )
 }
 
 @Composable
 fun SplashScreen(onReady: suspend () -> Unit) {
     LaunchedEffect(Unit) { delay(900); onReady() }
     Box(
-        Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF070B1A), Color(0xFF1A1540), Color(0xFF070B1A)))),
+        Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF07060F), Color(0xFF1B1245), Color(0xFF07060F)))),
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             BrandMark(92)
             Spacer(Modifier.height(18.dp))
-            Text("NWMOVIE", fontSize = 30.sp, fontWeight = FontWeight.Light, letterSpacing = 8.sp, color = Color.White)
+            Text("NWFLIX", fontSize = 30.sp, fontWeight = FontWeight.Light, letterSpacing = 8.sp, color = Color.White)
             Spacer(Modifier.height(6.dp))
-            Text("YOUR MOVIES. YOUR SPACE.", fontSize = 11.sp, letterSpacing = 3.sp, color = Color(0xFF9AA0C4))
+            Text("STREAM  ·  ENJOY  ·  ANYTIME", fontSize = 11.sp, letterSpacing = 3.sp, color = Color(0xFF9AA0C4))
             Spacer(Modifier.height(36.dp))
-            LinearProgressIndicator(Modifier.width(140.dp), color = MaterialTheme.colorScheme.primary, trackColor = Color(0xFF1A2140))
+            LinearProgressIndicator(Modifier.width(140.dp), color = MaterialTheme.colorScheme.primary, trackColor = Color(0xFF1D1A38))
         }
     }
 }
@@ -172,7 +168,7 @@ fun LockScreen(onUnlock: () -> Unit) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             BrandMark(72)
             Spacer(Modifier.height(16.dp))
-            Text("NWMovie is locked", style = MaterialTheme.typography.titleLarge)
+            Text("NWFlix is locked", style = MaterialTheme.typography.titleLarge)
             Spacer(Modifier.height(16.dp))
             Button(onClick = onUnlock) { Icon(Icons.Default.Lock, null); Spacer(Modifier.width(8.dp)); Text("Unlock") }
         }
