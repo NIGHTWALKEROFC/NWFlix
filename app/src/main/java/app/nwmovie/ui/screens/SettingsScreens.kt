@@ -61,7 +61,7 @@ fun SettingsScreen(vm: MainViewModel, onPage: (String) -> Unit) {
             }
             Spacer(Modifier.width(14.dp))
             Column {
-                Text(user.ifBlank { "NWMovie user" }, style = MaterialTheme.typography.titleMedium)
+                Text(user.ifBlank { "NWFlix user" }, style = MaterialTheme.typography.titleMedium)
                 Text("Connected with Telegram", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
@@ -175,7 +175,7 @@ fun SettingsPages(vm: MainViewModel, name: String, onBack: () -> Unit, onPage: (
             ActionRow("Scan for new movies", "Also runs automatically every time you open the app", Icons.Default.Refresh) { vm.rescan(false); vm.say("Scanning…") }
             ActionRow("Full rescan", "Slower: checks every chat deeply and retries unmatched movies", Icons.Default.Search) { vm.rescan(true); vm.say("Full scan started") }
             Group("Danger zone")
-            ActionRow("Log out & clear session", "Signs out of Telegram and deletes everything stored by NWMovie", Icons.Default.Logout, danger = true) { logout = true }
+            ActionRow("Log out & clear session", "Signs out of Telegram and deletes everything stored by NWFlix", Icons.Default.Logout, danger = true) { logout = true }
             if (logout) Confirm("Log out?", "This logs you out of Telegram on this phone and deletes the local index, caches and downloaded movies.", "Log out",
                 { vm.logout() }, { logout = false })
         }
@@ -184,7 +184,7 @@ fun SettingsPages(vm: MainViewModel, name: String, onBack: () -> Unit, onPage: (
             var clearSession by remember { mutableStateOf(false) }
             var clearData by remember { mutableStateOf(false) }
             Group("App lock")
-            SwitchRow("Biometric / PIN lock", "Fingerprint, face or your phone's PIN is needed to open NWMovie", p.appLock) { on ->
+            SwitchRow("Biometric / PIN lock", "Fingerprint, face or your phone's PIN is needed to open NWFlix", p.appLock) { on ->
                 if (on) {
                     val ok = BiometricManager.from(ctx).canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_WEAK or BiometricManager.Authenticators.DEVICE_CREDENTIAL) ==
                         BiometricManager.BIOMETRIC_SUCCESS
@@ -197,7 +197,7 @@ fun SettingsPages(vm: MainViewModel, name: String, onBack: () -> Unit, onPage: (
             ActionRow("Secure Telegram session", "Stored in an encrypted database; the key is kept in the Android Keystore. Logs never contain your data.", Icons.Default.Shield) {}
             ActionRow("Clear session", "Log out of Telegram and remove all local data", Icons.Default.Logout, danger = true) { clearSession = true }
             ActionRow("Clear all local data", "Deletes index, caches and downloads (stays logged in)", Icons.Default.Delete, danger = true) { clearData = true }
-            if (clearSession) Confirm("Clear session?", "You will be logged out and all local NWMovie data will be deleted.", "Clear", { vm.logout() }, { clearSession = false })
+            if (clearSession) Confirm("Clear session?", "You will be logged out and all local NWFlix data will be deleted.", "Clear", { vm.logout() }, { clearSession = false })
             if (clearData) Confirm("Delete all local data?", "Index, caches and downloaded movies will be removed.", "Delete", { vm.clearLocalData() }, { clearData = false })
         }
 
@@ -223,7 +223,8 @@ fun SettingsPages(vm: MainViewModel, name: String, onBack: () -> Unit, onPage: (
             Group("Display")
             SwitchRow("Full-screen player", "Hide system bars while watching", p.fullscreen) { vm.set(K.fullscreen, it) }
             SwitchRow("Show movie titles under posters", null, p.showTitles) { vm.set(K.showTitles, it) }
-            SwitchRow("Movie previews", "Plays short clips from random scenes on a movie page. Wi-Fi only, and off while Data saver is on.", p.previews) { vm.set(K.previews, it) }
+            SwitchRow("Movie previews", "Plays short clips from random scenes on a movie page. Off while Data saver is on.", p.previews) { vm.set(K.previews, it) }
+            SwitchRow("Previews on mobile data", "Off = on mobile data a Preview button appears and you tap it when you want one.", p.previewMobile) { vm.set(K.previewMobile, it) }
         }
 
         "player" -> Page("Player Settings", onBack) {
@@ -273,7 +274,7 @@ fun SettingsPages(vm: MainViewModel, name: String, onBack: () -> Unit, onPage: (
             Text("Wi-Fi only for downloads is in the next section. All rules apply together.", style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 16.dp))
             Group("Mobile data")
-            SwitchRow("Allow mobile data", "Off = NWMovie only uses Wi-Fi for everything", p.mobileData) { vm.set(K.mobileData, it) }
+            SwitchRow("Allow mobile data", "Off = NWFlix only uses Wi-Fi for everything", p.mobileData) { vm.set(K.mobileData, it) }
             SwitchRow("Wi-Fi only for streaming", null, p.wifiOnlyStream) { vm.set(K.wifiOnlyStream, it) }
             SwitchRow("Wi-Fi only for downloads", null, p.wifiOnlyDownload) { vm.set(K.wifiOnlyDownload, it) }
             Group("Background")
@@ -319,7 +320,7 @@ fun SettingsPages(vm: MainViewModel, name: String, onBack: () -> Unit, onPage: (
             ActionRow("Login code not coming?", "Step-by-step guide in English and മലയാളം", Icons.Default.HelpOutline) { guide = true }
             ActionRow("Open Telegram", "See your login code in the Telegram app", Icons.Default.Send) { if (!openTelegram(ctx)) vm.say("Telegram is not installed") }
             Group("How it works")
-            ActionRow("Where do my movies come from?", "NWMovie scans the Telegram chats and channels you already have access to and keeps only long videos and large video files.") {}
+            ActionRow("Where do my movies come from?", "NWFlix scans the Telegram chats and channels you already have access to and keeps only long videos and large video files.") {}
             ActionRow("A movie has the wrong poster", "Open it → “Wrong or missing match?” → search and pick the correct movie.") {}
             ActionRow("Video is slow to start", "Streaming depends on Telegram's speed. A loading spinner shows while data arrives. Downloading first removes buffering.") {}
             ActionRow("Video won't play", "Some codecs (e.g. DTS/E-AC3 audio, AVI containers) aren't supported on every phone. Try turning hardware acceleration off, or download and open in another player.") {}
@@ -463,7 +464,7 @@ private fun ColumnScope.UpdatesContent(vm: MainViewModel) {
         )
         Spacer(Modifier.height(12.dp))
         Button(onClick = { vm.checkUpdates(true) }, enabled = Updater.configured, shape = RoundedCornerShape(14.dp)) { Text("Check for updates") }
-        Text("If you skip an update, NWMovie asks again the next day.",
+        Text("If you skip an update, NWFlix asks again the next day.",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 12.dp))
     }
 }
@@ -473,10 +474,10 @@ private fun ColumnScope.UpdatesContent(vm: MainViewModel) {
 private const val CONTACT_TO = "rinshan602@gmail.com"
 
 private fun contactDeveloper(ctx: android.content.Context) {
-    val body = "\n\n---\nNWMovie ${BuildConfig.VERSION_NAME}\nAndroid ${android.os.Build.VERSION.RELEASE}\n${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}"
+    val body = "\n\n---\nNWFlix ${BuildConfig.VERSION_NAME}\nAndroid ${android.os.Build.VERSION.RELEASE}\n${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}"
     val i = android.content.Intent(android.content.Intent.ACTION_SENDTO, android.net.Uri.parse("mailto:")).apply {
         putExtra(android.content.Intent.EXTRA_EMAIL, arrayOf(CONTACT_TO))
-        putExtra(android.content.Intent.EXTRA_SUBJECT, "NWMovie feedback")
+        putExtra(android.content.Intent.EXTRA_SUBJECT, "NWFlix feedback")
         putExtra(android.content.Intent.EXTRA_TEXT, body)
     }
     try { ctx.startActivity(i) } catch (e: Exception) {
@@ -489,7 +490,7 @@ private fun ColumnScope.AboutContent() {
     val ctx = LocalContext.current
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         BrandMark(72)
-        Text("NWMovie", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(top = 12.dp))
+        Text("NWFlix", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(top = 12.dp))
         Text("Version ${BuildConfig.VERSION_NAME}", color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text("Watch the movies in your own Telegram chats, without leaving the app.",
             Modifier.padding(top = 12.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -499,10 +500,10 @@ private fun ColumnScope.AboutContent() {
     ActionRow("Contact & report a bug", "Send a message to the developer", Icons.Default.Email) { contactDeveloper(ctx) }
     Group("Credits")
     ActionRow("Movie information", "Posters and details come from TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB.") {}
-    ActionRow("Telegram", "Built on TDLib (Boost Software License). NWMovie is not affiliated with or endorsed by Telegram.") {}
+    ActionRow("Telegram", "Built on TDLib (Boost Software License). NWFlix is not affiliated with or endorsed by Telegram.") {}
     ActionRow("Players", "Media3 ExoPlayer (Apache 2.0) and the VLC engine, libVLC (LGPL 2.1).") {}
     Group("Legal")
-    ActionRow("Use responsibly", "Use NWMovie only with content you own or are allowed to watch, and follow Telegram's terms and the copyright laws of your country.") {}
+    ActionRow("Use responsibly", "Use NWFlix only with content you own or are allowed to watch, and follow Telegram's terms and the copyright laws of your country.") {}
     Text("© 2026 Mohammed Rinshan (NIGHTWALKER). All rights reserved.",
         Modifier.padding(16.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
