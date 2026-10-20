@@ -11,3 +11,6 @@
 *.keystore
 app/build/
 app/release/
+*.pem
+update_private*
+local.properties
