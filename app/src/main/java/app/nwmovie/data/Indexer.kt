@@ -39,24 +39,38 @@ class Indexer(private val tg: Tg, private val tmdb: TmdbClient, private val db: 
                 state.value = State(false, error = "Movie details aren't available in this build, so posters can't be loaded.", found = fresh.size)
                 return
             }
-            // Movie details are saved permanently. Only movies never looked up before are fetched (a full rescan retries the unmatched ones).
-            val todo = if (full) db.movies().unmatchedAll() else db.movies().unmatchedNew()
+            // Movie details are saved permanently. A normal scan looks up only files never tried before; a full
+            // rescan retries every file that is still unmatched. Done in small batches so a big library never floods TMDB.
+            val startedAt = System.currentTimeMillis()
+            val cutoff = if (full) startedAt else 1L
+            val total = db.movies().countUnmatchedBefore(cutoff)
             state.value = State(true, "Fetching movie details…", found = fresh.size)
-            val sem = Semaphore(4)
+            val sem = Semaphore(3)
             val done = AtomicInteger(0)
+            val failures = AtomicInteger(0)
             var authFailed = false
-            coroutineScope {
-                todo.map { m ->
-                    async {
-                        sem.withPermit {
-                            try { matchOne(m) } catch (e: TmdbAuthException) { authFailed = true } catch (_: Exception) { }
-                            val d = done.incrementAndGet()
-                            state.value = state.value.copy(matched = d, phase = "Fetching movie details… $d/${todo.size}")
+            while (!authFailed && failures.get() < 8) {
+                val batch = db.movies().unmatchedBefore(cutoff, 60)
+                if (batch.isEmpty()) break
+                coroutineScope {
+                    batch.map { m ->
+                        async {
+                            sem.withPermit {
+                                if (authFailed || failures.get() >= 8) return@withPermit
+                                try { matchOne(m) } catch (e: TmdbAuthException) { authFailed = true } catch (_: Exception) { failures.incrementAndGet() }
+                                val d = done.incrementAndGet()
+                                state.value = state.value.copy(matched = d, phase = "Fetching movie details… $d/$total")
+                            }
                         }
-                    }
-                }.awaitAll()
+                    }.awaitAll()
+                }
             }
-            state.value = State(false, found = fresh.size, error = if (authFailed) "The movie details service rejected the request. Please update the app." else null)
+            val err = when {
+                authFailed -> "The movie details service rejected the request. Please update the app."
+                failures.get() >= 8 -> "Movie details could not be loaded right now. Run the rescan again later to finish the rest."
+                else -> null
+            }
+            state.value = State(false, found = fresh.size, error = err)
         } catch (e: CancellationException) {
             state.value = State(false)
             throw e
