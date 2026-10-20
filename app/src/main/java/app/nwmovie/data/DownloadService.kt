@@ -43,7 +43,7 @@ class DownloadService : Service() {
         val text = if (hide) "Download in progress" else if (count == 0) "Preparing…" else "$count active • $pct%"
         return NotificationCompat.Builder(this, CHANNEL)
             .setSmallIcon(R.drawable.ic_stat)
-            .setContentTitle("NWMovie downloads")
+            .setContentTitle("NWFlix downloads")
             .setContentText(text)
             .setOnlyAlertOnce(true).setOngoing(true)
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
