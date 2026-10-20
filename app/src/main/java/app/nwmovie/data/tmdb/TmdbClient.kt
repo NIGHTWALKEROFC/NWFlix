@@ -116,7 +116,8 @@ class TmdbClient(ctx: Context) {
     companion object {
         fun img(path: String, size: String = "w342"): String? = if (path.isBlank()) null else "https://image.tmdb.org/t/p/$size$path"
         fun pickBest(title: String, year: Int, hits: List<Hit>): Hit? {
-            fun norm(s: String) = s.lowercase().replace(Regex("[^a-z0-9]+"), " ").trim()
+            // repeated letters are collapsed so spellings like "Naattil" and "Nattil" count as the same title
+            fun norm(s: String) = s.lowercase().replace(Regex("[^a-z0-9]+"), " ").replace(Regex("([a-z])\\1+"), "\$1").trim()
             val nt = norm(title)
             if (nt.isBlank()) return null
             return hits.map { h ->
