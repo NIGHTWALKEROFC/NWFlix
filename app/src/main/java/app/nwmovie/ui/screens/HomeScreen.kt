@@ -71,7 +71,7 @@ fun HomeScreen(
             Row(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                 BrandMark(30)
                 Spacer(Modifier.width(10.dp))
-                Text("NWMOVIE", fontWeight = FontWeight.Light, fontSize = 20.sp, letterSpacing = 4.sp, modifier = Modifier.weight(1f))
+                Text("NWFLIX", fontWeight = FontWeight.Light, fontSize = 20.sp, letterSpacing = 4.sp, modifier = Modifier.weight(1f))
                 IconButton(onClick = onSearch) { Icon(Icons.Default.Search, "Search") }
                 Box(Modifier.size(32.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary).clickable(onClick = onSettings),
                     contentAlignment = Alignment.Center) {
@@ -102,7 +102,7 @@ fun HomeScreen(
             item {
                 if (scan.running) EmptyState(Icons.Default.Movie, "Looking for your movies…", "Large chats can take a minute the first time.")
                 else EmptyState(Icons.Default.Movie, "No movies found yet",
-                    "NWMovie looks for long videos and big video files in the chats and channels you can access.",
+                    "NWFlix looks for long videos and big video files in the chats and channels you can access.",
                     action = "Scan again", onAction = { vm.rescan(true) })
             }
         } else {
