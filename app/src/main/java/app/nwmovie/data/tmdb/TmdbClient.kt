@@ -3,6 +3,9 @@ package app.nwmovie.data.tmdb
 import android.content.Context
 import app.nwmovie.data.Secrets
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
@@ -14,6 +17,21 @@ import java.net.URLEncoder
 import java.security.MessageDigest
 
 class TmdbAuthException : IOException("TMDB rejected the API key")
+
+/** Spaces out all TMDB requests (about 12 per second) and pauses everyone when TMDB asks us to slow down. */
+private object Pace {
+    private const val GAP = 80L
+    private val gate = Mutex()
+    @Volatile private var nextAt = 0L
+
+    suspend fun turn() = gate.withLock {
+        val now = System.currentTimeMillis()
+        if (nextAt > now) delay(nextAt - now)
+        nextAt = maxOf(now, nextAt) + GAP
+    }
+
+    fun backOff(ms: Long) { nextAt = maxOf(nextAt, System.currentTimeMillis() + ms) }
+}
 
 /**
  * Minimal TMDB v3 client (free for non-commercial use).
@@ -42,17 +60,27 @@ class TmdbClient(ctx: Context) {
             .entries.joinToString("&") { "${enc(it.key)}=${enc(it.value)}" }
         var attempt = 0
         while (true) {
+            Pace.turn()
             val conn = (URL("https://api.themoviedb.org/3$path?$query").openConnection() as HttpURLConnection).apply {
                 connectTimeout = 10_000; readTimeout = 15_000
             }
             try {
                 val code = conn.responseCode
                 if (code == 401) throw TmdbAuthException()
-                if (code == 429 && attempt++ < 3) { Thread.sleep(1500L * attempt); continue }
+                if (code == 429) {
+                    val secs = (conn.getHeaderField("Retry-After")?.trim()?.toLongOrNull() ?: (2L * (attempt + 1))).coerceIn(1L, 30L)
+                    Pace.backOff(secs * 1000)
+                    if (attempt++ < 5) continue
+                    throw IOException("TMDB is busy right now")
+                }
+                if (code >= 500 && attempt++ < 2) { delay(1000); continue }
                 if (code !in 200..299) throw IOException("TMDB error $code")
                 val text = conn.inputStream.bufferedReader().use { it.readText() }
                 f.writeText(text)
                 return@withContext JSONObject(text)
+            } catch (e: java.net.SocketTimeoutException) {
+                if (attempt++ < 1) continue
+                throw e
             } finally { conn.disconnect() }
         }
         @Suppress("UNREACHABLE_CODE") JSONObject()
