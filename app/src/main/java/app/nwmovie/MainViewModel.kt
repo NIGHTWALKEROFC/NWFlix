@@ -41,6 +41,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     /** Files of the same movie merged into one entry. */
     val groups: StateFlow<List<MovieGroup>> = movies.debounce(150).map { it.toGroups() }.flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    /** Groups for Home: files that could not be matched are left out unless you already used them. */
+    val homeGroups: StateFlow<List<MovieGroup>> = combine(groups, sl.prefs) { g, p ->
+        if (!p.hideUnmatched) g else g.filter { val v = it.view; v.matched || v.lastPlayedAt > 0 || v.watchlist || v.favorite }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    /** Set by Home to open Explore on a given filter (for example "Unmatched"). */
+    val exploreGenre = MutableStateFlow<String?>(null)
     val downloads: StateFlow<List<Pair<DownloadItem, Long>>> =
         combine(sl.downloads.items, sl.downloads.progress) { list, prog -> list.map { it to (prog[it.id] ?: it.done) } }
             .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
