@@ -1,6 +1,6 @@
 workflows:
   nwmovie-android:
-    name: NWMovie Android
+    name: NWFlix Android
     max_build_duration: 60
     environment:
       java: 17
