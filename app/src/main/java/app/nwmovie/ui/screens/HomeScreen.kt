@@ -41,7 +41,8 @@ import java.util.Calendar
 fun HomeScreen(
     vm: MainViewModel, onOpen: (String) -> Unit, onSearch: () -> Unit, onSettings: () -> Unit, onSeeAll: (SortOption) -> Unit
 ) {
-    val groups by vm.groups.collectAsState()
+    val groups by vm.homeGroups.collectAsState()
+    val allGroups by vm.groups.collectAsState()
     val scan by vm.scan.collectAsState()
     val prefs by vm.prefs.collectAsState()
     val user by vm.userName.collectAsState()
@@ -65,6 +66,7 @@ fun HomeScreen(
     }
     val series = remember(groups) { groups.filter { it.isSeries }.sortedByOption(SortOption.ADDED) }
     val unmatched = remember(groups) { groups.filter { !it.view.matched } }
+    val unmatchedCount = remember(allGroups) { allGroups.count { !it.view.matched } }
 
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
         item {
@@ -114,7 +116,9 @@ fun HomeScreen(
             if (newest.isNotEmpty()) item { PosterRow(newest, "New Releases", prefs.showTitles, { onSeeAll(SortOption.NEWEST) }, onOpen) }
             if (series.isNotEmpty()) item { PosterRow(series, "TV Series", prefs.showTitles, null, onOpen) }
             item { PosterRow(recent, "Recently Added (${recent.size})", prefs.showTitles, { onSeeAll(SortOption.ADDED) }, onOpen) }
-            if (unmatched.isNotEmpty()) item { PosterRow(unmatched, "Needs a match (${unmatched.size})", true, null, onOpen) }
+            if (prefs.hideUnmatched && unmatchedCount > 0) item {
+                UnmatchedNotice(unmatchedCount) { vm.exploreGenre.value = "Unmatched"; onSeeAll(SortOption.ADDED) }
+            } else if (unmatched.isNotEmpty()) item { PosterRow(unmatched, "Needs a match (${unmatched.size})", true, null, onOpen) }
         }
     }
 }
@@ -174,6 +178,22 @@ private fun MovieOfTheDay(g: MovieGroup, onOpen: (String) -> Unit) {
             Text(m.displayTitle, style = MaterialTheme.typography.titleLarge, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(listOf(if (m.displayYear > 0) m.displayYear.toString() else "", m.genreList.take(2).joinToString(" • "), if (m.rating > 0) "★ %.1f".format(m.rating) else "")
                 .filter { it.isNotBlank() }.joinToString("  •  "), style = MaterialTheme.typography.bodySmall, color = Color(0xFFCBD0F0))
+        }
+    }
+}
+
+@Composable
+private fun UnmatchedNotice(count: Int, onClick: () -> Unit) {
+    Surface(
+        shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).clickable(onClick = onClick)
+    ) {
+        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "$count ${if (count == 1) "file has" else "files have"} no movie details yet. Review them in Explore.",
+                Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium
+            )
+            Icon(Icons.Default.ChevronRight, null, tint = MaterialTheme.colorScheme.primary)
         }
     }
 }
