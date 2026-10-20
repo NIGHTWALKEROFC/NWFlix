@@ -40,7 +40,7 @@ fun UpdateHost() {
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(32.dp)) {
                 Text("Update required", style = MaterialTheme.typography.headlineSmall)
                 Text(
-                    "Please install the latest version to keep using NWMovie.",
+                    "Please install the latest version to keep using NWFlix.",
                     Modifier.padding(top = 8.dp), color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
@@ -54,12 +54,12 @@ fun UpdateHost() {
             text = {
                 Column {
                     Text(
-                        "NWMovie ${s.info.versionName}" + if (s.info.size > 0) "  (${fmtSize(s.info.size)})" else "",
+                        "NWFlix ${s.info.versionName}" + if (s.info.size > 0) "  (${fmtSize(s.info.size)})" else "",
                         style = MaterialTheme.typography.titleMedium
                     )
                     if (s.info.notes.isNotBlank()) Text(s.info.notes, Modifier.padding(top = 8.dp))
                     if (s.info.mandatory) Text(
-                        "This update is required to keep using NWMovie.",
+                        "This update is required to keep using NWFlix.",
                         Modifier.padding(top = 8.dp), color = MaterialTheme.colorScheme.error
                     )
                 }
@@ -70,7 +70,7 @@ fun UpdateHost() {
         is Updater.State.NeedPermission -> AlertDialog(
             onDismissRequest = { },
             title = { Text("Allow installing updates") },
-            text = { Text("Android needs your permission once so NWMovie can install its updates. Tap Allow, switch on “Allow from this source”, then come back. The update continues by itself.") },
+            text = { Text("Android needs your permission once so NWFlix can install its updates. Tap Allow, switch on “Allow from this source”, then come back. The update continues by itself.") },
             confirmButton = { Button(onClick = { Updater.openInstallPermissionScreen(ctx) }) { Text("Allow") } },
             dismissButton = { if (!s.info.mandatory) TextButton(onClick = { scope.launch { Updater.later() } }) { Text("Cancel") } }
         )
@@ -88,7 +88,7 @@ fun UpdateHost() {
         is Updater.State.Installing -> AlertDialog(
             onDismissRequest = { },
             title = { Text("Installing…") },
-            text = { Text("NWMovie restarts when the update is installed. If Android asks, tap Update.") },
+            text = { Text("NWFlix restarts when the update is installed. If Android asks, tap Update.") },
             confirmButton = { }
         )
         is Updater.State.Failed -> AlertDialog(
