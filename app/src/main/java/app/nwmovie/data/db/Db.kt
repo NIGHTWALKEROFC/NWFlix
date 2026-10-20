@@ -49,6 +49,8 @@ interface MovieDao {
     @Query("SELECT id FROM movies") suspend fun keys(): List<String>
     @Query("SELECT * FROM movies WHERE tmdbId = 0 AND triedAt = 0 LIMIT 400") suspend fun unmatchedNew(): List<Movie>
     @Query("SELECT * FROM movies WHERE tmdbId = 0 LIMIT 400") suspend fun unmatchedAll(): List<Movie>
+    @Query("SELECT * FROM movies WHERE tmdbId = 0 AND triedAt < :before LIMIT :n") suspend fun unmatchedBefore(before: Long, n: Int): List<Movie>
+    @Query("SELECT COUNT(*) FROM movies WHERE tmdbId = 0 AND triedAt < :before") suspend fun countUnmatchedBefore(before: Long): Int
     @Insert(onConflict = OnConflictStrategy.IGNORE) suspend fun insertAll(list: List<Movie>)
     @Update suspend fun update(m: Movie)
     @Query("UPDATE movies SET fileId = :fileId WHERE id = :id") suspend fun setFileId(id: String, fileId: Int)
