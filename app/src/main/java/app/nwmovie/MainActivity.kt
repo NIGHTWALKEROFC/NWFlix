@@ -76,7 +76,7 @@ class MainActivity : FragmentActivity() {
             override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) { AppState.locked.value = false }
         })
         prompt.authenticate(
-            BiometricPrompt.PromptInfo.Builder().setTitle("Unlock NWMovie")
+            BiometricPrompt.PromptInfo.Builder().setTitle("Unlock NWFlix")
                 .setSubtitle("Use fingerprint, face or your phone PIN").setAllowedAuthenticators(allowed).build()
         )
     }
