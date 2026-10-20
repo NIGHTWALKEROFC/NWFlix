@@ -105,9 +105,9 @@ fun OtpGuideDialog(lang: String, onLang: (String) -> Unit, onClose: () -> Unit) 
                     StepCard("2", Icons.Default.Chat, tr(lang, "Find the chat named “Telegram”", "“Telegram” എന്ന ചാറ്റ് നോക്കുക"),
                         tr(lang, "In your chat list, open the chat called Telegram (blue tick). The newest message has your code.",
                             "ചാറ്റ് ലിസ്റ്റിൽ നീല ടിക്ക് ഉള്ള “Telegram” എന്ന ചാറ്റ് തുറക്കുക. ഏറ്റവും പുതിയ സന്ദേശത്തിൽ കോഡ് ഉണ്ടാകും.")) { FakeTelegramChat(lang) }
-                    StepCard("3", Icons.Default.Pin, tr(lang, "Type the 5-digit code in NWMovie", "5 അക്ക കോഡ് NWMovie-യിൽ നൽകുക"),
-                        tr(lang, "Come back to NWMovie and enter the code. Never share this code with anyone.",
-                            "NWMovie-യിലേക്ക് തിരിച്ചുവന്ന് കോഡ് നൽകുക. ഈ കോഡ് ആർക്കും പങ്കുവെക്കരുത്."))
+                    StepCard("3", Icons.Default.Pin, tr(lang, "Type the 5-digit code in NWFlix", "5 അക്ക കോഡ് NWFlix-യിൽ നൽകുക"),
+                        tr(lang, "Come back to NWFlix and enter the code. Never share this code with anyone.",
+                            "NWFlix-യിലേക്ക് തിരിച്ചുവന്ന് കോഡ് നൽകുക. ഈ കോഡ് ആർക്കും പങ്കുവെക്കരുത്."))
 
                     Spacer(Modifier.height(10.dp))
                     Text(tr(lang, "Code not coming?", "കോഡ് വരുന്നില്ലേ?"), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
