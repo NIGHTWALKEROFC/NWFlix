@@ -19,6 +19,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
@@ -80,7 +81,7 @@ fun DetailScreen(vm: MainViewModel, id: String, onBack: () -> Unit, onPlay: (Str
             Box(Modifier.fillMaxWidth().height(300.dp)) {
                 val back = TmdbClient.img(m.backdrop, if (prefs.bandwidthSaver) "w500" else "w780") ?: TmdbClient.img(m.poster, if (prefs.bandwidthSaver) "w342" else "w500")
                 if (back != null) AsyncImage(back, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-                else Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant))
+                else Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(MaterialTheme.colorScheme.primary.copy(alpha = 0.30f), MaterialTheme.colorScheme.background))))
                 if (prefs.previews) PreviewVideo(playTarget, Modifier.fillMaxSize())
                 GradientScrim(Modifier.fillMaxSize())
                 Row(Modifier.statusBarsPadding().padding(8.dp)) {
