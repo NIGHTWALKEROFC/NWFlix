@@ -132,6 +132,7 @@ fun NWRoot(vm: MainViewModel) {
         }
     }
     UpdateHost()
+    RemoteHost(vm)
 }
 
 @Composable
