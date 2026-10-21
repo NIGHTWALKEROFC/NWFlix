@@ -89,6 +89,8 @@ fun VlcPlayerScreen(vm: MainViewModel, id: String, onBack: () -> Unit, onNext: (
     var scrub by remember { mutableStateOf<Float?>(null) }
     var locked by remember { mutableStateOf(false) }
     var manualRotate by remember { mutableStateOf(false) }
+    var tall by remember { mutableStateOf(false) }
+    var aspect by remember { mutableIntStateOf(0) }          // 0 fit, 1 stretch, 2 zoom
     var sleepAt by remember { mutableLongStateOf(0L) }
     var versions by remember { mutableStateOf<List<Movie>>(emptyList()) }
     var audioTracks by remember { mutableStateOf<List<MediaPlayer.TrackDescription>>(emptyList()) }
@@ -156,6 +158,7 @@ fun VlcPlayerScreen(vm: MainViewModel, id: String, onBack: () -> Unit, onNext: (
                 MediaPlayer.Event.Vout -> try {
                     val t = mp.currentVideoTrack
                     // a tall (phone-recorded) video opens upright
+                    if (t != null && t.height > t.width) tall = true
                     if (t != null && !manualRotate && t.height > t.width) activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
                 } catch (_: Throwable) { }
                 MediaPlayer.Event.LengthChanged -> dur = ev.lengthChanged
@@ -190,6 +193,21 @@ fun VlcPlayerScreen(vm: MainViewModel, id: String, onBack: () -> Unit, onNext: (
             delay((sleepAt - System.currentTimeMillis()).coerceAtLeast(0))
             mp.pause(); sleepAt = 0; vm.say("Sleep timer: paused")
         }
+    }
+
+    LaunchedEffect(aspect) {
+        try {
+            mp.setVideoScale(when (aspect) {
+                1 -> MediaPlayer.ScaleType.SURFACE_FILL
+                2 -> MediaPlayer.ScaleType.SURFACE_FIT_SCREEN
+                else -> MediaPlayer.ScaleType.SURFACE_BEST_FIT
+            })
+        } catch (_: Throwable) { }
+    }
+    // the player that was just closed can reset the orientation a moment after this one opened
+    LaunchedEffect(Unit) {
+        delay(500)
+        if (!manualRotate && !tall) activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
     }
 
     // ---------- window: bars, orientation, brightness ----------
@@ -366,6 +384,10 @@ fun VlcPlayerScreen(vm: MainViewModel, id: String, onBack: () -> Unit, onNext: (
                         PlayerBtn(Icons.Default.Subtitles, "Subtitles") { sheet = "subs" }
                         PlayerBtn(Icons.Default.Audiotrack, "Audio") { sheet = "audio" }
                         PlayerBtn(Icons.Default.Speed, "${speed}x") { sheet = "speed" }
+                        PlayerBtn(Icons.Default.AspectRatio, listOf("Fit", "Stretch", "Zoom")[aspect]) {
+                            aspect = (aspect + 1) % 3
+                            hud = listOf("Fit to screen", "Stretch", "Zoom to fill")[aspect]
+                        }
                         PlayerBtn(Icons.Default.MoreHoriz, "More") { sheet = "more" }
                     }
                 }
@@ -376,7 +398,7 @@ fun VlcPlayerScreen(vm: MainViewModel, id: String, onBack: () -> Unit, onNext: (
         if (!pip) when (sheet) {
             "subs" -> PlayerSheet("Subtitles", { sheet = null }) {
                 PlayerOpt("Off", curSpu == -1) { mp.setSpuTrack(-1); curSpu = -1 }
-                spuTracks.filter { it.id != -1 }.forEach { t -> PlayerOpt(t.name ?: "Track ${t.id}", curSpu == t.id) { mp.setSpuTrack(t.id); curSpu = t.id } }
+                spuTracks.filter { it.id != -1 }.forEach { t -> PlayerOpt(vlcTrackName(t.name, t.id), curSpu == t.id) { mp.setSpuTrack(t.id); curSpu = t.id } }
                 OutlinedButton(onClick = { picker.launch(arrayOf("*/*")) }, Modifier.fillMaxWidth().padding(top = 6.dp)) { Icon(Icons.Default.FolderOpen, null); Spacer(Modifier.width(8.dp)); Text("Load subtitle file (.srt .vtt .ass)") }
                 Text("Subtitle delay: $subDelay ms", Modifier.padding(top = 12.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -386,7 +408,7 @@ fun VlcPlayerScreen(vm: MainViewModel, id: String, onBack: () -> Unit, onNext: (
             }
             "audio" -> PlayerSheet("Audio", { sheet = null }) {
                 if (audioTracks.none { it.id != -1 }) Text("No selectable audio tracks.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                audioTracks.filter { it.id != -1 }.forEach { t -> PlayerOpt(t.name ?: "Track ${t.id}", curAudio == t.id) { mp.setAudioTrack(t.id); curAudio = t.id } }
+                audioTracks.filter { it.id != -1 }.forEach { t -> PlayerOpt(vlcTrackName(t.name, t.id), curAudio == t.id) { mp.setAudioTrack(t.id); curAudio = t.id } }
                 Text("Audio delay: $audioDelay ms", Modifier.padding(top = 12.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     listOf(-500, -100, 100, 500).forEach { d -> OutlinedButton(onClick = { audioDelay += d; mp.setAudioDelay(audioDelay * 1000L) }, contentPadding = PaddingValues(8.dp)) { Text(if (d > 0) "+$d" else "$d") } }
