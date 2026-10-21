@@ -82,6 +82,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     // ----- login -----
     private fun login(block: suspend () -> Unit) { viewModelScope.launch { busy.value = true; try { block() } finally { busy.value = false } } }
+    fun clearAuthError() { sl.tg.error.value = null }
     fun submitPhone(p: String) = login { sl.tg.submitPhone(p) }
     fun submitCode(c: String) = login { sl.tg.submitCode(c) }
     fun submitPassword(p: String) = login { sl.tg.submitPassword(p) }
