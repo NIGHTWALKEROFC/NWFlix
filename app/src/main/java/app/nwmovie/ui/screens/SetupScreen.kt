@@ -43,18 +43,19 @@ fun SetupScreen(vm: MainViewModel, onDone: () -> Unit) {
         Spacer(Modifier.height(6.dp))
         Text(
             tr(lang,
-                "While you use NWFlix, it keeps some data on your phone for a while: posters, movie information and small parts of the movies you watched. " +
-                    "This is called cache. It makes the app open faster and saves internet data, but it takes space on your phone. " +
-                    "Your downloaded movies are never deleted by this.",
-                "NWFlix ഉപയോഗിക്കുമ്പോൾ പോസ്റ്ററുകൾ, സിനിമയുടെ വിവരങ്ങൾ, കണ്ട സിനിമകളുടെ ചെറിയ ഭാഗങ്ങൾ എന്നിവ കുറച്ചുനേരം ഫോണിൽ സൂക്ഷിക്കും. " +
-                    "ഇതിനെയാണ് ക്യാഷ് എന്ന് പറയുന്നത്. ഇത് ആപ്പ് വേഗത്തിൽ തുറക്കാനും ഇന്റർനെറ്റ് ലാഭിക്കാനും സഹായിക്കും, പക്ഷേ ഫോണിൽ സ്ഥലം എടുക്കും. " +
-                    "ഡൗൺലോഡ് ചെയ്ത സിനിമകൾ ഇതുകൊണ്ട് ഒരിക്കലും ഡിലീറ്റ് ആകില്ല."),
+                "When you watch a movie, small parts of it are kept on your phone for a while. This is called cache. " +
+                    "It makes playing faster and saves internet data, but it takes space. " +
+                    "Posters and movie information are different: they are saved permanently (they take very little space) so they never have to be downloaded again, and you can delete them any time in Settings. " +
+                    "Your downloaded movies are never deleted by cache cleaning.",
+                "ഒരു സിനിമ കാണുമ്പോൾ അതിന്റെ ചെറിയ ഭാഗങ്ങൾ കുറച്ചുനേരം ഫോണിൽ സൂക്ഷിക്കും. ഇതിനെയാണ് ക്യാഷ് എന്ന് പറയുന്നത്. ഇത് പ്ലേ വേഗത്തിലാക്കാനും ഇന്റർനെറ്റ് ലാഭിക്കാനും സഹായിക്കും, പക്ഷേ ഫോണിൽ സ്ഥലം എടുക്കും. " +
+                    "പോസ്റ്ററുകളും സിനിമയുടെ വിവരങ്ങളും വേറെയാണ്: അവ സ്ഥിരമായി സൂക്ഷിക്കും (വളരെ കുറച്ച് സ്ഥലം മാത്രം), അതിനാൽ വീണ്ടും ഡൗൺലോഡ് ചെയ്യേണ്ടതില്ല. ആവശ്യമെങ്കിൽ Settings-ൽ നിന്ന് ഡിലീറ്റ് ചെയ്യാം. " +
+                    "ഡൗൺലോഡ് ചെയ്ത സിനിമകൾ ക്യാഷ് ക്ലീനിങ് കൊണ്ട് ഒരിക്കലും ഡിലീറ്റ് ആകില്ല."),
             style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Spacer(Modifier.height(20.dp))
         Text(tr(lang, "How many days should it be kept?", "എത്ര ദിവസം സൂക്ഷിക്കണം?"), style = MaterialTheme.typography.titleMedium)
-        Text(tr(lang, "After these days without opening the app, the cache is deleted automatically.",
-            "ഇത്ര ദിവസം ആപ്പ് തുറക്കാതിരുന്നാൽ ക്യാഷ് തനിയെ ഡിലീറ്റ് ആകും."),
+        Text(tr(lang, "After these days without opening the app, the movie cache is deleted automatically.",
+            "ഇത്ര ദിവസം ആപ്പ് തുറക്കാതിരുന്നാൽ സിനിമയുടെ ക്യാഷ് തനിയെ ഡിലീറ്റ് ആകും."),
             style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(10.dp))
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
