@@ -10,6 +10,7 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import app.nwmovie.data.*
 import app.nwmovie.data.db.AppDb
+import app.nwmovie.data.Telemetry
 import app.nwmovie.data.telegram.Tg
 import app.nwmovie.data.tmdb.TmdbClient
 import coil.ImageLoader
@@ -64,22 +65,28 @@ object ServiceLocator {
         images = ImageLoader.Builder(a)
             .memoryCache { MemoryCache.Builder(a).maxSizePercent(0.2).build() }
             .diskCache {
-                DiskCache.Builder().directory(File(a.cacheDir, "posters"))
+                DiskCache.Builder().directory(File(a.filesDir, "posters"))
                     .maxSizeBytes(runBlockingPrefs().posterCacheMb * 1024L * 1024L).build()
             }
             .crossfade(true)
             .build()
         NetPolicy.init(a)
         downloads.init()
+        Telemetry.init(a, scope)
 
         // The app only works while it is open: when it is hidden (and nothing is playing or downloading) Telegram's network is paused.
         ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
-            override fun onStart(owner: LifecycleOwner) { scope.launch { tg.setConnected(true) } }
+            override fun onStart(owner: LifecycleOwner) { scope.launch { tg.setConnected(true) }; Telemetry.poke(scope) }
             override fun onStop(owner: LifecycleOwner) {
                 scope.launch {
                     delay(4000)
-                    val visible = ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
-                    if (!visible && !AppState.playerPlaying && !downloads.hasActive()) tg.setConnected(false)
+                    // a running scan, a playing movie or a download keeps Telegram connected until it is finished
+                    while (true) {
+                        val visible = ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
+                        if (visible) break
+                        if (!AppState.playerPlaying && !downloads.hasActive() && !indexer.state.value.running) { tg.setConnected(false); break }
+                        delay(5000)
+                    }
                 }
             }
         })
