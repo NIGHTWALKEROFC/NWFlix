@@ -39,13 +39,13 @@ private object Pace {
  * This product uses the TMDB API but is not endorsed or certified by TMDB.
  */
 class TmdbClient(ctx: Context) {
-    data class Hit(val id: Int, val title: String, val year: Int, val poster: String, val popularity: Double, val overview: String)
+    data class Hit(val id: Int, val title: String, val year: Int, val poster: String, val popularity: Double, val overview: String, val original: String = "")
     data class Detail(
         val id: Int, val title: String, val year: Int, val rating: Double, val popularity: Double, val genres: String,
         val overview: String, val poster: String, val backdrop: String, val runtime: Int, val cast: String
     )
 
-    val dir = File(ctx.cacheDir, "tmdb").apply { mkdirs() }
+    val dir = File(ctx.filesDir, "tmdb").apply { mkdirs() }
     fun hasKey() = Secrets.tmdbKey.isNotBlank()
 
     private fun enc(s: String) = URLEncoder.encode(s, "UTF-8")
@@ -53,7 +53,7 @@ class TmdbClient(ctx: Context) {
 
     private suspend fun get(path: String, q: Map<String, String>): JSONObject = withContext(Dispatchers.IO) {
         val f = File(dir.apply { mkdirs() }, sha(path + q.toSortedMap().toString()))
-        if (f.exists() && System.currentTimeMillis() - f.lastModified() < 14L * 86400_000) {
+        if (f.exists() && !staleEmptySearch(path, f)) {
             try { return@withContext JSONObject(f.readText()) } catch (_: Exception) { f.delete() }
         }
         val query = (q + mapOf("api_key" to Secrets.tmdbKey, "language" to "en-US"))
@@ -86,6 +86,13 @@ class TmdbClient(ctx: Context) {
         @Suppress("UNREACHABLE_CODE") JSONObject()
     }
 
+    /** Saved answers never expire. Only an empty search result is looked up again after 3 days (the title may have been added since). */
+    private fun staleEmptySearch(path: String, f: File): Boolean {
+        if (!path.startsWith("/search")) return false
+        if (System.currentTimeMillis() - f.lastModified() < 3L * 86400_000) return false
+        return try { JSONObject(f.readText()).optJSONArray("results")?.length() == 0 } catch (_: Exception) { true }
+    }
+
     private fun year(date: String?): Int = date?.take(4)?.toIntOrNull() ?: 0
 
     suspend fun search(title: String, year: Int, tv: Boolean = false): List<Hit> {
@@ -96,7 +103,8 @@ class TmdbClient(ctx: Context) {
             return (0 until minOf(arr.length(), 10)).map { i ->
                 val o = arr.getJSONObject(i)
                 Hit(o.getInt("id"), o.optString(if (tv) "name" else "title"), year(o.optString(if (tv) "first_air_date" else "release_date")),
-                    o.optString("poster_path").takeIf { it != "null" } ?: "", o.optDouble("popularity", 0.0), o.optString("overview"))
+                    o.optString("poster_path").takeIf { it != "null" } ?: "", o.optDouble("popularity", 0.0), o.optString("overview"),
+                    o.optString(if (tv) "original_name" else "original_title"))
             }
         }
         val first = run(year)
@@ -143,19 +151,45 @@ class TmdbClient(ctx: Context) {
 
     companion object {
         fun img(path: String, size: String = "w342"): String? = if (path.isBlank()) null else "https://image.tmdb.org/t/p/$size$path"
+        private fun norm(s: String) = s.lowercase().replace(Regex("[^a-z0-9]+"), " ").replace(Regex("([a-z])\\1+"), "\$1").trim()
+
+        private fun lev(a: String, b: String): Int {
+            if (a == b) return 0
+            var prev = IntArray(b.length + 1) { it }
+            for (i in 1..a.length) {
+                val cur = IntArray(b.length + 1); cur[0] = i
+                for (j in 1..b.length) cur[j] = minOf(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + if (a[i - 1] == b[j - 1]) 0 else 1)
+                prev = cur
+            }
+            return prev[b.length]
+        }
+
+        /** 0..1: how alike two titles are, forgiving spelling (Nattil / Naattil / Nadthil) and word order. */
+        private fun similarity(query: String, candidate: String): Double {
+            val q = norm(query); val c = norm(candidate)
+            if (q.isBlank() || c.isBlank()) return 0.0
+            if (q == c) return 1.0
+            val a = q.replace(" ", ""); val b = c.replace(" ", "")
+            val letters = 1.0 - lev(a, b).toDouble() / maxOf(a.length, b.length)
+            val qs = q.split(' ').toSet(); val cs = c.split(' ').toSet()
+            val words = qs.intersect(cs).size.toDouble() / maxOf(qs.size, cs.size)
+            return maxOf(letters, words)
+        }
+
+        /** Takes the closest title. A matching year allows a looser title; a different year needs an almost identical one. */
         fun pickBest(title: String, year: Int, hits: List<Hit>): Hit? {
-            // repeated letters are collapsed so spellings like "Naattil" and "Nattil" count as the same title
-            fun norm(s: String) = s.lowercase().replace(Regex("[^a-z0-9]+"), " ").replace(Regex("([a-z])\\1+"), "\$1").trim()
-            val nt = norm(title)
-            if (nt.isBlank()) return null
-            return hits.map { h ->
-                var s = 0
-                val nh = norm(h.title)
-                if (nh == nt) s += 4 else if (nh.contains(nt) || nt.contains(nh)) s += 1
-                if (year > 0 && h.year > 0) s += if (h.year == year) 3 else if (kotlin.math.abs(h.year - year) == 1) 1 else -3
-                else if (year == 0) s += 1
-                h to s
-            }.filter { it.second >= 3 }.maxWithOrNull(compareBy({ it.second }, { it.first.popularity }))?.first
+            if (norm(title).isBlank()) return null
+            return hits.mapNotNull { h ->
+                val s = maxOf(similarity(title, h.title), similarity(title, h.original))
+                val dy = if (year > 0 && h.year > 0) kotlin.math.abs(h.year - year) else -1
+                val ok = when {
+                    dy == 0 -> s >= 0.72
+                    dy == 1 -> s >= 0.80
+                    dy < 0 -> s >= 0.88
+                    else -> s >= 0.97
+                }
+                if (ok) Triple(h, s + (if (dy == 0) 0.15 else 0.0), h.popularity) else null
+            }.maxWithOrNull(compareBy({ it.second }, { it.third }))?.first
         }
     }
 }
