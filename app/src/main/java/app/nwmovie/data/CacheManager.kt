@@ -6,8 +6,8 @@ import java.io.File
 
 /**
  * Four separate categories, plus the Downloads folder which is never touched by cache clearing:
- *  1. Posters   – image cache (cache/posters)
- *  2. Metadata  – TMDB JSON cache (cache/tmdb)
+ *  1. Posters   – saved images (files/posters), kept until the user deletes them
+ *  2. Metadata  – saved TMDB answers (files/tmdb), kept until the user deletes them
  *  3. Index     – the local movie list (Room database)
  *  4. Temporary – TDLib streaming/partial files (noBackup/td/files)
  */
@@ -29,7 +29,7 @@ object CacheManager {
         val dbFile = ctx.getDatabasePath("nw.db")
         val index = listOf(dbFile, File(dbFile.path + "-wal"), File(dbFile.path + "-shm")).sumOf { if (it.exists()) it.length() else 0L }
         return Usage(
-            posters = dirSize(File(ctx.cacheDir, "posters")),
+            posters = dirSize(File(ctx.filesDir, "posters")),
             metadata = dirSize(sl.tmdb.dir),
             index = index,
             temp = dirSize(sl.tg.tempDir),
@@ -57,10 +57,7 @@ object CacheManager {
         val p = ServiceLocator.prefs.value
         if (!p.autoClean) return
         val threeDays = p.cacheDays.coerceAtLeast(1) * 86400_000L
-        val prev = ServiceLocator.prevOpen
-        val inactive = prev > 0 && System.currentTimeMillis() - prev > threeDays
-        if (inactive) { clearPosters() }
-        ServiceLocator.tmdb.dir.listFiles()?.forEach { if (System.currentTimeMillis() - it.lastModified() > threeDays) it.delete() }
+        // posters and TMDB details are never cleaned automatically: refetching them is what hits TMDB's limits
         ServiceLocator.tg.optimizeTemp(p.tempCacheMb * 1024L * 1024L, (threeDays / 1000).toInt(), all = false)
     }
 }
