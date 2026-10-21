@@ -18,7 +18,7 @@ sha() { if command -v sha256sum >/dev/null; then sha256sum "$1" | cut -d' ' -f1;
 size() { wc -c < "$1" | tr -d ' '; }
 
 entries=""
-for abi in arm64-v8a armeabi-v7a x86_64 universal; do
+for abi in arm64-v8a armeabi-v7a x86_64; do
   f="$DIR/app-$abi-release.apk"
   [ -f "$f" ] || { echo "skipping $abi (no file)"; continue; }
   entries+="${entries:+,}\"$abi\":{\"url\":\"${BASE}app-$abi-release.apk\",\"sha256\":\"$(sha "$f")\",\"size\":$(size "$f")}"
