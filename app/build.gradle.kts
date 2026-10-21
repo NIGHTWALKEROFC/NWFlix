@@ -39,6 +39,8 @@ android {
         buildConfigField("int", "TG_API_ID", tgId)
         buildConfigField("String", "TG_API_HASH", "\"${secret("TG_API_HASH")}\"")
         buildConfigField("String", "TMDB_API_KEY", "\"${secret("TMDB_API_KEY")}\"")
+        buildConfigField("String", "FB_PROJECT_ID", "\"${secret("FB_PROJECT_ID")}\"")
+        buildConfigField("String", "FB_API_KEY", "\"${secret("FB_API_KEY")}\"")
         buildConfigField("String", "UPDATE_URL", "\"${secret("UPDATE_URL")}\"")
         buildConfigField("String", "UPDATE_PUBKEY", "\"${secret("UPDATE_PUBKEY")}\"")
         buildConfigField("String", "CERT_SHA256", "\"${secret("APP_CERT_SHA256")}\"")
@@ -50,7 +52,7 @@ android {
             reset()
             if (abiProp == null || abiProp == "universal") {
                 include("armeabi-v7a", "arm64-v8a", "x86_64")
-                isUniversalApk = true
+                isUniversalApk = false
             } else {
                 include(abiProp)
                 isUniversalApk = false
