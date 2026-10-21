@@ -74,6 +74,18 @@ fun HomeScreen(
                 BrandMark(30)
                 Spacer(Modifier.width(10.dp))
                 Text("NWFLIX", fontWeight = FontWeight.Light, fontSize = 20.sp, letterSpacing = 4.sp, modifier = Modifier.weight(1f))
+                var refreshMenu by remember { mutableStateOf(false) }
+                val scanning by vm.scan.collectAsState()
+                Box {
+                    IconButton(onClick = { refreshMenu = true }) {
+                        if (scanning.running) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                        else Icon(Icons.Default.Refresh, "Refresh")
+                    }
+                    DropdownMenu(expanded = refreshMenu, onDismissRequest = { refreshMenu = false }) {
+                        DropdownMenuItem(text = { Text("Check for new movies") }, onClick = { refreshMenu = false; vm.rescan(false); vm.say("Checking for new movies…") })
+                        DropdownMenuItem(text = { Text("Full rescan (slower)") }, onClick = { refreshMenu = false; vm.rescan(true); vm.say("Full scan started") })
+                    }
+                }
                 IconButton(onClick = onSearch) { Icon(Icons.Default.Search, "Search") }
                 Box(Modifier.size(32.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary).clickable(onClick = onSettings),
                     contentAlignment = Alignment.Center) {
