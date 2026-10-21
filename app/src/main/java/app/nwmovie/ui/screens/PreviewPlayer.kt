@@ -29,6 +29,7 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultDataSource
+import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
@@ -65,64 +66,77 @@ fun PreviewVideo(movie: Movie, modifier: Modifier = Modifier) {
 
     LaunchedEffect(movie.id, needTap) {
         if (needTap) return@LaunchedEffect
-        delay(1000)                                   // skip it while the user is just scrolling past
+        delay(300)
         val p = ServiceLocator.prefs.value
         if (!p.previews || p.bandwidthSaver) return@LaunchedEffect
         val local = ServiceLocator.downloads.localPath(movie.id)
         val uri: Uri
         if (local != null) uri = Uri.fromFile(File(local)) else {
             if (NetPolicy.streamBlock(p) != null || CacheManager.isLowStorage(ctx)) return@LaunchedEffect
-            val tf = ServiceLocator.tg.refreshFile(movie) ?: return@LaunchedEffect
+            // The first lookup often fails while Telegram is still waking up, so it is tried a few times.
+            var tf = ServiceLocator.tg.refreshFile(movie)
+            var tries = 0
+            while (tf == null && tries++ < 4) { delay(1200); tf = ServiceLocator.tg.refreshFile(movie) }
+            if (tf == null) return@LaunchedEffect
             uri = Uri.parse("tg://file/${tf.id}")
         }
-        val exo = ExoPlayer.Builder(ctx, DefaultRenderersFactory(ctx).setEnableDecoderFallback(true))
-            .setMediaSourceFactory(
-                DefaultMediaSourceFactory(
-                    DefaultDataSource.Factory(ctx, TelegramDataSource.Factory(ServiceLocator.tg) { 8L * 1024 * 1024 }),
-                    DefaultExtractorsFactory()
+
+        for (attempt in 0..1) {
+            val exo = ExoPlayer.Builder(ctx, DefaultRenderersFactory(ctx).setEnableDecoderFallback(true))
+                .setMediaSourceFactory(
+                    DefaultMediaSourceFactory(
+                        DefaultDataSource.Factory(ctx, TelegramDataSource.Factory(ServiceLocator.tg) { 6L * 1024 * 1024 }),
+                        DefaultExtractorsFactory()
+                    )
                 )
-            ).build()
-        var failed = false
-        exo.addListener(object : Player.Listener {
-            override fun onPlayerError(error: PlaybackException) { failed = true }
-        })
-        exo.volume = 0f
-        exo.setMediaItem(MediaItem.fromUri(uri))
-        exo.prepare()
-        player = exo
+                .setLoadControl(DefaultLoadControl.Builder().setBufferDurationsMs(1_500, 8_000, 400, 800).build())   // start playing sooner
+                .build()
+            var failed = false
+            exo.addListener(object : Player.Listener {
+                override fun onPlayerError(error: PlaybackException) { failed = true }
+            })
+            exo.volume = 0f
+            exo.setMediaItem(MediaItem.fromUri(uri))
+            exo.prepare()
+            player = exo
 
-        suspend fun waitPlaying(ms: Long): Boolean = withTimeoutOrNull(ms) {
-            while (!(exo.playbackState == Player.STATE_READY && exo.isPlaying) && !failed) delay(150)
-            !failed
-        } ?: false
-
-        try {
-            val ready = withTimeoutOrNull(30_000) {
-                while (exo.playbackState != Player.STATE_READY && !failed) delay(200)
+            suspend fun waitPlaying(ms: Long): Boolean = withTimeoutOrNull(ms) {
+                while (!(exo.playbackState == Player.STATE_READY && exo.isPlaying) && !failed) delay(100)
                 !failed
             } ?: false
-            if (!ready) return@LaunchedEffect
-            val total = exo.duration
-            val canSeek = total > 60_000 && exo.isCurrentMediaItemSeekable
-            var misses = 0
-            while (isActive && !failed) {
-                visible = false
-                delay(250)
-                if (canSeek) exo.seekTo((total * Random.nextDouble(0.12, 0.85)).toLong())
-                exo.play()
-                var ok = waitPlaying(20_000)
-                if (!ok && canSeek && misses++ < 1) {        // that spot would not load: go back to the start once
-                    exo.seekTo(0); exo.play(); ok = waitPlaying(15_000)
+
+            var worked = false
+            try {
+                val ready = withTimeoutOrNull(30_000) {
+                    while (exo.playbackState != Player.STATE_READY && !failed) delay(100)
+                    !failed
+                } ?: false
+                if (ready) {
+                    val total = exo.duration
+                    val canSeek = total > 60_000 && exo.isCurrentMediaItemSeekable
+                    // the very first clip starts right away; the next ones jump to random scenes
+                    exo.play()
+                    var ok = waitPlaying(15_000)
+                    if (ok) { worked = true; visible = true; delay(5_000) }
+                    var misses = 0
+                    while (ok && canSeek && isActive && !failed) {
+                        visible = false
+                        delay(250)
+                        exo.seekTo((total * Random.nextDouble(0.12, 0.85)).toLong())
+                        exo.play()
+                        ok = waitPlaying(20_000)
+                        if (!ok && misses++ < 1) { exo.seekTo(0); exo.play(); ok = waitPlaying(12_000) }
+                        if (ok) { visible = true; delay(6_000) }
+                    }
+                    if (ok && !canSeek) delay(10_000)
                 }
-                if (!ok) break
-                visible = true
-                delay(if (canSeek) 6_000 else 15_000)
-                if (!canSeek) break
+            } finally {
+                visible = false
+                player = null
+                exo.release()
             }
-        } finally {
-            visible = false
-            player = null
-            exo.release()
+            if (worked || !isActive) break
+            delay(2_000)                                  // second try when the first one never started
         }
     }
 
