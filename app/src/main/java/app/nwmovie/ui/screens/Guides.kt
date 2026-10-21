@@ -133,3 +133,47 @@ fun OtpGuideDialog(lang: String, onLang: (String) -> Unit, onClose: () -> Unit) 
         }
     }
 }
+
+@Composable
+fun MoviesGuideDialog(lang: String, onLang: (String) -> Unit, onClose: () -> Unit) {
+    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Surface(Modifier.fillMaxWidth(0.94f).fillMaxHeight(0.92f), shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surface) {
+            Column(Modifier.padding(16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(tr(lang, "How to get movies in NWFlix", "NWFlix-ൽ സിനിമകൾ എങ്ങനെ കിട്ടും"), style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+                    IconButton(onClick = onClose) { Icon(Icons.Default.Close, "Close") }
+                }
+                LangToggle(lang, onLang)
+                Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(top = 8.dp)) {
+                    Text(
+                        tr(lang,
+                            "NWFlix does not contain or host any movies. It shows the video files that are already in your own Telegram account.",
+                            "NWFlix-ൽ സിനിമകൾ ഒന്നും സൂക്ഷിച്ചിട്ടില്ല. നിങ്ങളുടെ സ്വന്തം Telegram അക്കൗണ്ടിലുള്ള വീഡിയോ ഫയലുകളാണ് ഇത് കാണിക്കുന്നത്."),
+                        style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    StepCard("1", Icons.Default.Groups, tr(lang, "Join a channel or group", "ചാനലിലോ ഗ്രൂപ്പിലോ ജോയിൻ ചെയ്യുക"),
+                        tr(lang, "In Telegram, search for a channel or group that shares movies you are allowed to watch and tap Join.",
+                            "Telegram-ൽ, നിങ്ങൾക്ക് കാണാൻ അനുവാദമുള്ള സിനിമകൾ പങ്കുവെക്കുന്ന ചാനലോ ഗ്രൂപ്പോ തിരഞ്ഞ് Join അമർത്തുക."))
+                    StepCard("2", Icons.Default.Bookmark, tr(lang, "Or use “Saved Messages”", "അല്ലെങ്കിൽ “Saved Messages” ഉപയോഗിക്കുക"),
+                        tr(lang, "You can also forward or send your own video files to your Saved Messages chat in Telegram. They will show up in NWFlix too.",
+                            "നിങ്ങളുടെ സ്വന്തം വീഡിയോ ഫയലുകൾ Telegram-ലെ Saved Messages ചാറ്റിലേക്ക് ഫോർവേഡ് ചെയ്യുകയോ അയക്കുകയോ ചെയ്യാം. അവയും NWFlix-ൽ കാണാം."))
+                    StepCard("3", Icons.Default.Refresh, tr(lang, "Refresh in NWFlix", "NWFlix-ൽ റിഫ്രഷ് ചെയ്യുക"),
+                        tr(lang, "Come back to NWFlix, tap the refresh button at the top of the Home screen and choose “Check for new movies”.",
+                            "NWFlix-ലേക്ക് തിരിച്ചുവന്ന്, ഹോം സ്ക്രീനിന്റെ മുകളിലുള്ള റിഫ്രഷ് ബട്ടൺ അമർത്തി “Check for new movies” തിരഞ്ഞെടുക്കുക."))
+                    StepCard("4", Icons.Default.Movie, tr(lang, "Find it and play", "കണ്ടെത്തി പ്ലേ ചെയ്യുക"),
+                        tr(lang, "The movie appears on Home and Explore. If the poster is wrong or missing, open the movie and tap “Wrong or missing match?” to pick the right one.",
+                            "സിനിമ ഹോമിലും Explore-ലും വരും. പോസ്റ്റർ തെറ്റാണെങ്കിലോ ഇല്ലെങ്കിലോ, സിനിമ തുറന്ന് “Wrong or missing match?” അമർത്തി ശരിയായത് തിരഞ്ഞെടുക്കുക."))
+                    Spacer(Modifier.height(10.dp))
+                    Text(tr(lang, "Good to know", "അറിഞ്ഞിരിക്കാൻ"), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+                    StepCard("•", Icons.Default.Info, tr(lang, "What is shown", "എന്തൊക്കെ കാണിക്കും"),
+                        tr(lang, "Muted or archived chats are included. Chats or channels you have left, and files that were deleted, will not show. Only long video files (like mkv and mp4) are listed.",
+                            "മ്യൂട്ട് ചെയ്തതോ ആർക്കൈവ് ചെയ്തതോ ആയ ചാറ്റുകളും കാണിക്കും. ലീവ് ചെയ്ത ചാറ്റുകളിലെയും ചാനലുകളിലെയും ഫയലുകളും ഡിലീറ്റ് ചെയ്തവയും കാണിക്കില്ല. വലിയ വീഡിയോ ഫയലുകൾ (mkv, mp4 പോലുള്ളവ) മാത്രമേ ലിസ്റ്റ് ചെയ്യൂ."))
+                    StepCard("•", Icons.Default.Gavel, tr(lang, "Use it responsibly", "ഉത്തരവാദിത്തത്തോടെ ഉപയോഗിക്കുക"),
+                        tr(lang, "Only watch content you own or have permission to watch. NWFlix does not provide any movies.",
+                            "നിങ്ങളുടെ സ്വന്തം അല്ലെങ്കിൽ കാണാൻ അനുവാദമുള്ള ഉള്ളടക്കം മാത്രം കാണുക. NWFlix സിനിമകൾ നൽകുന്നില്ല."))
+                }
+            }
+        }
+    }
+}
