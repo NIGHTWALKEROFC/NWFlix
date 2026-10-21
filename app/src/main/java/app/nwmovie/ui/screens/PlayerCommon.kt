@@ -76,3 +76,55 @@ internal fun PlayerAction(icon: ImageVector, label: String, onClick: () -> Unit)
         Text(label, color = MaterialTheme.colorScheme.onSurface)
     }
 }
+
+// ---------------------------------------------------------------- track names
+
+private val LANGS = mapOf(
+    "eng" to "English", "en" to "English", "hin" to "Hindi", "hi" to "Hindi", "mal" to "Malayalam", "ml" to "Malayalam",
+    "tam" to "Tamil", "ta" to "Tamil", "tel" to "Telugu", "te" to "Telugu", "kan" to "Kannada", "kn" to "Kannada",
+    "ben" to "Bengali", "bn" to "Bengali", "mar" to "Marathi", "mr" to "Marathi", "guj" to "Gujarati", "gu" to "Gujarati",
+    "pan" to "Punjabi", "pa" to "Punjabi", "urd" to "Urdu", "ur" to "Urdu", "ara" to "Arabic", "ar" to "Arabic",
+    "fre" to "French", "fra" to "French", "fr" to "French", "ger" to "German", "deu" to "German", "de" to "German",
+    "spa" to "Spanish", "es" to "Spanish", "ita" to "Italian", "it" to "Italian", "por" to "Portuguese", "pt" to "Portuguese",
+    "rus" to "Russian", "ru" to "Russian", "jpn" to "Japanese", "ja" to "Japanese", "kor" to "Korean", "ko" to "Korean",
+    "chi" to "Chinese", "zho" to "Chinese", "zh" to "Chinese", "tha" to "Thai", "th" to "Thai", "ind" to "Indonesian", "id" to "Indonesian",
+    "may" to "Malay", "msa" to "Malay", "ms" to "Malay", "tur" to "Turkish", "tr" to "Turkish", "vie" to "Vietnamese", "vi" to "Vietnamese",
+    "sin" to "Sinhala", "si" to "Sinhala", "nep" to "Nepali", "ne" to "Nepali", "per" to "Persian", "fas" to "Persian", "fa" to "Persian",
+    "heb" to "Hebrew", "he" to "Hebrew", "pol" to "Polish", "pl" to "Polish", "dut" to "Dutch", "nld" to "Dutch", "nl" to "Dutch",
+    "swe" to "Swedish", "sv" to "Swedish", "gre" to "Greek", "ell" to "Greek", "el" to "Greek", "ukr" to "Ukrainian", "uk" to "Ukrainian"
+)
+
+/** "mal" → "Malayalam", "en-US" → "English". Returns null when the code says nothing ("und"). */
+internal fun languageName(code: String?): String? {
+    val c = code?.trim()?.lowercase()?.substringBefore('-')?.substringBefore('_') ?: return null
+    if (c.isEmpty() || c == "und" || c == "mis" || c == "zxx") return null
+    LANGS[c]?.let { return it }
+    val n = try { java.util.Locale(c).displayLanguage } catch (e: Exception) { "" }
+    return n.takeIf { it.isNotBlank() && !it.equals(c, ignoreCase = true) }?.replaceFirstChar { it.uppercase() }
+}
+
+/** Name for an ExoPlayer audio or subtitle track: the full language name, plus any extra text the file gives. */
+internal fun trackName(label: String?, lang: String?, n: Int): String {
+    val l = languageName(lang)
+    val lab = label?.trim().orEmpty()
+    return when {
+        l != null && (lab.isEmpty() || languageName(lab) != null || lab.equals(l, ignoreCase = true)) -> l
+        l != null && lab.contains(l, ignoreCase = true) -> lab
+        l != null -> "$l – $lab"
+        lab.isNotEmpty() -> languageName(lab) ?: lab
+        else -> "Track $n"
+    }
+}
+
+/** Same for the VLC engine, whose names look like "Track 1 - [English]" or just "mal". */
+internal fun vlcTrackName(name: String?, id: Int): String {
+    val n = name?.trim().orEmpty()
+    if (n.isEmpty()) return "Track $id"
+    val br = Regex("\\[([^\\]]+)\\]").find(n)?.groupValues?.get(1)
+    if (br != null) {
+        val lang = languageName(br) ?: br
+        val head = n.substringBefore('[').trim().trimEnd('-').trim()
+        return if (head.isBlank() || head.startsWith("Track", ignoreCase = true)) lang else "$lang – $head"
+    }
+    return languageName(n) ?: n
+}
