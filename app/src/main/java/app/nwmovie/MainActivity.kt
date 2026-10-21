@@ -63,7 +63,7 @@ class MainActivity : FragmentActivity() {
 
     override fun onStop() {
         super.onStop()
-        if (!isChangingConfigurations) { AppState.locked.value = true; vm.stopScan() }
+        if (!isChangingConfigurations) { AppState.locked.value = true }
     }
 
     private fun authenticate() {
