@@ -87,8 +87,7 @@ private fun trackOpts(t: Tracks, type: Int): List<TrackOpt> {
         for (i in 0 until g.length) {
             n++
             val f = g.getTrackFormat(i)
-            val lang = f.language?.takeIf { it != "und" }?.let { Locale.forLanguageTag(it).displayLanguage }
-            val base = f.label ?: lang ?: "Track $n"
+            val base = trackName(f.label, f.language, n)
             val extra = when (type) {
                 C.TRACK_TYPE_AUDIO -> listOfNotNull(f.sampleMimeType?.substringAfter('/')?.uppercase(), if (f.channelCount > 0) "${f.channelCount}ch" else null)
                 C.TRACK_TYPE_VIDEO -> listOfNotNull(if (f.height > 0) "${f.height}p" else null, if (f.bitrate > 0) "${f.bitrate / 1000} kbps" else null)
@@ -149,6 +148,7 @@ fun PlayerScreen(vm: MainViewModel, id: String, onBack: () -> Unit, onNext: (Str
     var locked by remember { mutableStateOf(false) }                        // touch lock
     fun cid(): String = parts.getOrNull(curIdx)?.id ?: id
     var manualRotate by remember { mutableStateOf(false) }
+    var aspect by remember { mutableIntStateOf(0) }          // 0 fit, 1 stretch, 2 zoom
     val lowAtStart = remember { CacheManager.isLowStorage(ctx) }
     var sleepAt by remember { mutableLongStateOf(0L) }          // 0 off, -1 end of movie, else epoch ms
     var ext by remember { mutableStateOf<List<Sub>>(emptyList()) }
@@ -350,6 +350,11 @@ fun PlayerScreen(vm: MainViewModel, id: String, onBack: () -> Unit, onNext: (Str
             }
         }
     }
+    // the screen that was just closed (the other player) can reset the orientation a moment after this one opened
+    LaunchedEffect(Unit) {
+        delay(500)
+        if (!manualRotate && vsize.height <= vsize.width) activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+    }
     LaunchedEffect(vsize) {
         // A tall (phone-recorded) video opens upright; the rotate button still works either way.
         if (!manualRotate && vsize.width > 0 && vsize.height > vsize.width) activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
@@ -406,7 +411,11 @@ fun PlayerScreen(vm: MainViewModel, id: String, onBack: () -> Unit, onNext: (Str
             AndroidView(
                 factory = { c -> PlayerView(c).apply { useController = false; keepScreenOn = true; setShutterBackgroundColor(android.graphics.Color.BLACK); this.player = player } },
                 update = { v ->
-                    v.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                    v.resizeMode = when (aspect) {
+                        1 -> AspectRatioFrameLayout.RESIZE_MODE_FILL
+                        2 -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                        else -> AspectRatioFrameLayout.RESIZE_MODE_FIT
+                    }
                     v.subtitleView?.apply {
                         visibility = if (extOn) android.view.View.GONE else android.view.View.VISIBLE
                         setFixedTextSize(TypedValue.COMPLEX_UNIT_SP, prefs.subSize)
@@ -571,6 +580,10 @@ fun PlayerScreen(vm: MainViewModel, id: String, onBack: () -> Unit, onNext: (Str
                         PlayerBtn(Icons.Default.Subtitles, "Subtitles") { sheet = "subs" }
                         PlayerBtn(Icons.Default.Audiotrack, "Audio") { sheet = "audio" }
                         PlayerBtn(Icons.Default.Speed, "${speed}x") { sheet = "speed" }
+                        PlayerBtn(Icons.Default.AspectRatio, listOf("Fit", "Stretch", "Zoom")[aspect]) {
+                            aspect = (aspect + 1) % 3
+                            hud = listOf("Fit to screen", "Stretch", "Zoom to fill")[aspect]
+                        }
                         PlayerBtn(Icons.Default.MoreHoriz, "More") { sheet = "more" }
                     }
                 }
