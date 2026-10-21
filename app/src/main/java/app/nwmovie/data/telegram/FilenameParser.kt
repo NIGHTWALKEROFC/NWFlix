@@ -88,6 +88,8 @@ object FilenameParser {
             out += t
             out += t.replace(TAG_WORD, "").trim()
             out += t.replace(TAG_GLUED, "").trim()
+            if (words.size >= 3) out += words.dropLast(1).joinToString(" ")
+            if (words.size >= 4) out += words.dropLast(2).joinToString(" ")
             if (words.size >= 3 && words[0].length <= 6) out += words.drop(1).joinToString(" ")
             if (words.size >= 4 && words[0].length <= 6 && words[1].length <= 6) out += words.drop(2).joinToString(" ")
         }
