@@ -51,6 +51,9 @@ fun SettingsScreen(vm: MainViewModel, onPage: (String) -> Unit) {
         Triple(Icons.Default.BarChart, "Watch statistics", "stats"),
         Triple(Icons.Default.SystemUpdate, "App updates", "updates"),
         Triple(Icons.Default.HelpOutline, "Help & Support", "help"),
+        Triple(Icons.Default.Gavel, "Privacy Policy", "privacy_policy"),
+        Triple(Icons.Default.Description, "Terms & Conditions", "terms"),
+        Triple(Icons.Default.Copyright, "Disclaimer & Copyright", "disclaimer"),
         Triple(Icons.Default.Info, "About", "about")
     )
     Column(Modifier.fillMaxSize().statusBarsPadding().verticalScroll(rememberScrollState())) {
@@ -193,6 +196,8 @@ fun SettingsPages(vm: MainViewModel, name: String, onBack: () -> Unit, onPage: (
             }
             SwitchRow("Hide notification previews", "Notifications won't show movie titles", p.hideNotif) { vm.set(K.hideNotif, it) }
             SwitchRow("Block screenshots & hide in recent apps", null, p.blockShots) { vm.set(K.blockShots, it) }
+            Group("Usage statistics")
+            SwitchRow("Share anonymous usage statistics", "Helps the developer count users and send important notices. Never includes your Telegram details, chats, file names or what you watch.", p.shareStats) { vm.set(K.shareStats, it) }
             Group("Your data")
             ActionRow("Secure Telegram session", "Stored in an encrypted database; the key is kept in the Android Keystore. Logs never contain your data.", Icons.Default.Shield) {}
             ActionRow("Clear session", "Log out of Telegram and remove all local data", Icons.Default.Logout, danger = true) { clearSession = true }
@@ -209,6 +214,10 @@ fun SettingsPages(vm: MainViewModel, name: String, onBack: () -> Unit, onPage: (
 
         "about" -> Page("About", onBack) { AboutContent() }
 
+        "privacy_policy" -> Page("Privacy Policy", onBack) { LegalBody("privacy") }
+        "terms" -> Page("Terms & Conditions", onBack) { LegalBody("terms") }
+        "disclaimer" -> Page("Disclaimer & Copyright", onBack) { LegalBody("disclaimer") }
+
         "appearance" -> Page("Appearance", onBack) {
             Group("Theme")
             ChoiceRow("Theme", p.theme, listOf("dark" to "Midnight (navy)", "amoled" to "AMOLED black", "light" to "Light")) { vm.set(K.theme, it) }
@@ -224,7 +233,7 @@ fun SettingsPages(vm: MainViewModel, name: String, onBack: () -> Unit, onPage: (
             SwitchRow("Full-screen player", "Hide system bars while watching", p.fullscreen) { vm.set(K.fullscreen, it) }
             SwitchRow("Show movie titles under posters", null, p.showTitles) { vm.set(K.showTitles, it) }
             SwitchRow("Movie previews", "Plays short clips from random scenes on a movie page. Off while Data saver is on.", p.previews) { vm.set(K.previews, it) }
-            SwitchRow("Previews on mobile data", "Off = on mobile data a Preview button appears and you tap it when you want one.", p.previewMobile) { vm.set(K.previewMobile, it) }
+            SwitchRow("Previews on mobile data", "Uses a little mobile data. Switch off to get a Preview button you tap when you want one.", p.previewMobile) { vm.set(K.previewMobile, it) }
             SwitchRow("Hide files without movie details", "They are left out of Home and Explore. Find them in Explore → Unmatched, or by searching.", p.hideUnmatched) { vm.set(K.hideUnmatched, it) }
         }
 
@@ -289,9 +298,13 @@ fun SettingsPages(vm: MainViewModel, name: String, onBack: () -> Unit, onPage: (
             fun refresh() { usage = CacheManager.usage(ctx) }
             LaunchedEffect(Unit) { refresh() }
             var confirmClear by remember { mutableStateOf<String?>(null) }
+            var confirmDetails by remember { mutableStateOf(false) }
+            Group("Saved movie details (kept until you delete them)")
+            CacheRow("Posters & images", usage.posters, "Kept so they never need to be downloaded again", "Delete") { CacheManager.clearPosters(); refresh() }
+            CacheRow("Movie information", usage.metadata, "Kept so TMDB is not asked again", "Delete") { confirmDetails = true }
+            if (confirmDetails) Confirm("Delete saved movie details?", "Posters and details will have to be fetched from TMDB again, which can take a while for a big library.", "Delete",
+                { CacheManager.clearMetadata(); refresh(); vm.rescan(true) }, { confirmDetails = false })
             Group("Cache (safe to clear)")
-            CacheRow("Posters & images", usage.posters) { CacheManager.clearPosters(); refresh() }
-            CacheRow("Movie details (metadata)", usage.metadata) { CacheManager.clearMetadata(); refresh() }
             CacheRow("Movie index", usage.index, "Your lists & history are kept") { scope.launch { CacheManager.clearIndex(); refresh(); vm.rescan(false) } }
             CacheRow("Temporary playback files", usage.temp) { scope.launch { CacheManager.clearTemp(); refresh() } }
             Group("Downloads (kept separate from caches)")
@@ -300,7 +313,7 @@ fun SettingsPages(vm: MainViewModel, name: String, onBack: () -> Unit, onPage: (
             Group("Limits & automatic cleanup")
             ChoiceRow("Poster cache limit (applies next start)", p.posterCacheMb, listOf(100, 200, 300, 500, 1000).map { it to "$it MB" }) { vm.set(K.posterCacheMb, it) }
             ChoiceRow("Temporary files limit", p.tempCacheMb, listOf(512, 1024, 2048, 4096, 8192).map { it to fmtSize(it * 1024L * 1024L) }) { vm.set(K.tempCacheMb, it) }
-            SwitchRow("Automatic cleanup", "Clears cached data after ${p.cacheDays} day(s) without opening the app", p.autoClean) { vm.set(K.autoClean, it) }
+            SwitchRow("Automatic cleanup", "Clears temporary playback data after ${p.cacheDays} day(s) without opening the app. Saved movie details are never cleaned automatically.", p.autoClean) { vm.set(K.autoClean, it) }
             ChoiceRow("Keep cache for", p.cacheDays, listOf(1, 3, 7, 15, 30).map { it to (if (it == 1) "1 day" else "$it days") }) { vm.set(K.cacheDays, it) }
             ChoiceRow("Clear movie data after watching", p.clearAfterWatch,
                 listOf("auto" to "Only when storage is low (under 5 GB)", "always" to "Always", "never" to "Never")) { vm.set(K.clearAfterWatch, it) }
@@ -316,9 +329,12 @@ fun SettingsPages(vm: MainViewModel, name: String, onBack: () -> Unit, onPage: (
 
         else -> Page("Help & Support", onBack) {
             var guide by remember { mutableStateOf(false) }
+            var movieGuide by remember { mutableStateOf(false) }
+            if (movieGuide) MoviesGuideDialog(p.uiLang, { vm.set(K.uiLang, it) }) { movieGuide = false }
             if (guide) OtpGuideDialog(p.uiLang, { vm.set(K.uiLang, it) }) { guide = false }
             Group("Login")
             ActionRow("Login code not coming?", "Step-by-step guide in English and മലയാളം", Icons.Default.HelpOutline) { guide = true }
+            ActionRow("How do I get movies in NWFlix?", "Step-by-step in English and മലയാളം", Icons.Default.Movie) { movieGuide = true }
             ActionRow("Open Telegram", "See your login code in the Telegram app", Icons.Default.Send) { if (!openTelegram(ctx)) vm.say("Telegram is not installed") }
             Group("How it works")
             ActionRow("Where do my movies come from?", "NWFlix scans the Telegram chats and channels you already have access to and keeps only long videos and large video files.") {}
@@ -330,13 +346,13 @@ fun SettingsPages(vm: MainViewModel, name: String, onBack: () -> Unit, onPage: (
 }
 
 @Composable
-private fun CacheRow(title: String, bytes: Long, note: String? = null, onClear: () -> Unit) {
+private fun CacheRow(title: String, bytes: Long, note: String? = null, button: String = "Clear", onClear: () -> Unit) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.bodyLarge)
             Text(fmtSize(bytes) + if (note != null) "  •  $note" else "", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        OutlinedButton(onClick = onClear, border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)) { Text("Clear") }
+        OutlinedButton(onClick = onClear, border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)) { Text(button) }
     }
 }
 
@@ -474,7 +490,12 @@ private fun ColumnScope.UpdatesContent(vm: MainViewModel) {
 
 private const val CONTACT_TO = "rinshan602@gmail.com"
 
-private fun contactDeveloper(ctx: android.content.Context) {
+private fun openLink(ctx: android.content.Context, url: String) {
+    try { ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
+    catch (e: Exception) { android.widget.Toast.makeText(ctx, "Couldn't open the link", android.widget.Toast.LENGTH_LONG).show() }
+}
+
+private fun sendMail(ctx: android.content.Context) {
     val body = "\n\n---\nNWFlix ${BuildConfig.VERSION_NAME}\nAndroid ${android.os.Build.VERSION.RELEASE}\n${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}"
     val i = android.content.Intent(android.content.Intent.ACTION_SENDTO, android.net.Uri.parse("mailto:")).apply {
         putExtra(android.content.Intent.EXTRA_EMAIL, arrayOf(CONTACT_TO))
@@ -487,8 +508,27 @@ private fun contactDeveloper(ctx: android.content.Context) {
 }
 
 @Composable
-private fun ColumnScope.AboutContent() {
+private fun ContactDialog(onClose: () -> Unit) {
     val ctx = LocalContext.current
+    AlertDialog(
+        onDismissRequest = onClose,
+        title = { Text("How would you like to reach me?") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Choose where to send your message or bug report.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Button(onClick = { openLink(ctx, "https://instagram.com/nightwalker.ofc"); onClose() }, Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) { Text("Instagram") }
+                Button(onClick = { openLink(ctx, "https://t.me/nightwalker_ofc"); onClose() }, Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) { Text("Telegram") }
+                Button(onClick = { sendMail(ctx); onClose() }, Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) { Text("Email") }
+            }
+        },
+        confirmButton = { TextButton(onClick = onClose) { Text("Cancel") } }
+    )
+}
+
+@Composable
+private fun ColumnScope.AboutContent() {
+    var contact by remember { mutableStateOf(false) }
+    if (contact) ContactDialog { contact = false }
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         BrandMark(72)
         Text("NWFlix", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(top = 12.dp))
@@ -498,7 +538,7 @@ private fun ColumnScope.AboutContent() {
     }
     Group("Developer")
     ActionRow("Mohammed Rinshan", "NIGHTWALKER", Icons.Default.Person) {}
-    ActionRow("Contact & report a bug", "Send a message to the developer", Icons.Default.Email) { contactDeveloper(ctx) }
+    ActionRow("Contact & report a bug", "Send a message to the developer", Icons.Default.Email) { contact = true }
     Group("Credits")
     ActionRow("Movie information", "Posters and details come from TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB.") {}
     ActionRow("Telegram", "Built on TDLib (Boost Software License). NWFlix is not affiliated with or endorsed by Telegram.") {}
