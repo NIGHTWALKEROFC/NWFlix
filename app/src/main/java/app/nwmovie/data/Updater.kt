@@ -45,11 +45,28 @@ object Updater {
 
     val configured: Boolean get() = BuildConfig.UPDATE_URL.startsWith("https://") && BuildConfig.UPDATE_PUBKEY.isNotBlank()
 
+    private fun java.io.InputStream.readUpTo(max: Int): ByteArray {
+        val out = java.io.ByteArrayOutputStream()
+        val buf = ByteArray(8192)
+        while (out.size() < max) {
+            val n = read(buf, 0, minOf(buf.size, max - out.size()))
+            if (n < 0) break
+            out.write(buf, 0, n)
+        }
+        return out.toByteArray()
+    }
+
+    private const val MAX_META = 256 * 1024
+    private const val MAX_APK = 800L * 1024 * 1024
+
     private fun fetch(url: String): ByteArray {
+        if (!url.startsWith("https://")) throw SecurityException("Insecure update link")
         val c = (URL(url).openConnection() as HttpURLConnection).apply { connectTimeout = 12_000; readTimeout = 20_000; instanceFollowRedirects = true }
         try {
             if (c.responseCode != 200) throw IllegalStateException("HTTP ${c.responseCode}")
-            return c.inputStream.use { it.readBytes() }
+            val data = c.inputStream.use { it.readUpTo(MAX_META + 1) }
+            if (data.size > MAX_META) throw SecurityException("Update information is too large")
+            return data
         } finally { c.disconnect() }
     }
 
@@ -135,18 +152,21 @@ object Updater {
         try {
             if (c.responseCode != 200) throw IllegalStateException("Download failed (HTTP ${c.responseCode})")
             val total = c.contentLengthLong.takeIf { it > 0 } ?: info.size
+            val limit = if (info.size > 0) info.size + 1024 else MAX_APK
+            if (total > MAX_APK || total > limit) throw SecurityException("The update file has an unexpected size. Update cancelled.")
             c.inputStream.use { i -> out.outputStream().use { o ->
                 val buf = ByteArray(64 * 1024); var done = 0L; var last = -1
                 while (true) {
                     val n = i.read(buf); if (n < 0) break
                     o.write(buf, 0, n); md.update(buf, 0, n); done += n
+                    if (done > limit) throw SecurityException("The update file is larger than expected. Update cancelled.")
                     val pct = if (total > 0) (done * 100 / total).toInt() else 0
                     if (pct != last) { last = pct; state.value = State.Downloading(info, pct) }
                 }
             } }
-        } finally { c.disconnect() }
+        } catch (e: Exception) { out.delete(); throw e } finally { c.disconnect() }
         val hash = md.digest().joinToString("") { "%02x".format(it) }
-        if (hash != info.sha256) { out.delete(); throw SecurityException("The downloaded file does not match the signed checksum. Update cancelled.") }
+        if (!MessageDigest.isEqual(hash.toByteArray(), info.sha256.toByteArray())) { out.delete(); throw SecurityException("The downloaded file does not match the signed checksum. Update cancelled.") }
         return out
     }
 
