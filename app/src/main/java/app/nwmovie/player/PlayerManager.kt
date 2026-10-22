@@ -122,7 +122,6 @@ object PlayerManager {
         controller = MediaController.Builder(ctx, token).buildAsync()
     }
 
-    fun isCurrent(p: ExoPlayer): Boolean = exo === p
     fun releaseIfCurrent(p: ExoPlayer) { if (exo === p) release() }
 
     fun release() {
