@@ -19,13 +19,19 @@ object Secrets {
         }
     }
 
-    private fun create(ctx: Context): SharedPreferences {
+    private fun create(ctx: Context, name: String = "nw_secure"): SharedPreferences {
         val mk = MasterKey.Builder(ctx).setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build()
         return EncryptedSharedPreferences.create(
-            ctx, "nw_secure", mk,
+            ctx, name, mk,
             EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
             EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
         )
+    }
+
+    /** Encrypted store for the signed-in account's session tokens. Null when the keystore is unusable. */
+    fun account(ctx: Context): SharedPreferences? = try { create(ctx, "nw_account_secure") } catch (e: Exception) {
+        ctx.deleteSharedPreferences("nw_account_secure")
+        try { create(ctx, "nw_account_secure") } catch (e2: Exception) { null }
     }
 
     var tgApiId: Int
