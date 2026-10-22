@@ -26,9 +26,8 @@ import java.util.Locale
 import java.util.TimeZone
 
 /**
- * Anonymous usage counting and the maintenance / announcement notice, using Firebase's free REST interface.
- * Nothing is sent unless the Firebase project id and key were added to the build, and the statistics part can be
- * switched off by the user.
+ * Google sign-in, the user count and the maintenance / announcement notice, through Firebase's free REST interface.
+ * Everything stays off unless the Firebase project id and key were added to the build.
  */
 object Telemetry {
     data class Remote(
@@ -41,10 +40,14 @@ object Telemetry {
     private class HttpErr(val code: Int, msg: String) : IOException(msg)
 
     val remote = MutableStateFlow(Remote())
+    /** The Google account email when signed in, otherwise empty. */
+    val signedInEmail = MutableStateFlow("")
 
     private val pid get() = BuildConfig.FB_PROJECT_ID
     private val key get() = BuildConfig.FB_API_KEY
-    val configured get() = pid.isNotBlank() && key.isNotBlank()
+    private val configured get() = pid.isNotBlank() && key.isNotBlank()
+    /** True when this build can offer Google sign-in. */
+    val googleReady get() = configured && BuildConfig.GOOGLE_WEB_CLIENT_ID.isNotBlank()
 
     private var sp: SharedPreferences? = null
     private var started = false
@@ -55,7 +58,8 @@ object Telemetry {
     fun init(c: Context, scope: CoroutineScope) {
         if (!configured || started) return
         started = true
-        sp = c.applicationContext.getSharedPreferences("nw_stats", Context.MODE_PRIVATE)
+        sp = c.applicationContext.getSharedPreferences("nw_account", Context.MODE_PRIVATE)
+        signedInEmail.value = sp?.getString("email", "").orEmpty()
         scope.launch(Dispatchers.IO) {
             delay(3000)
             while (true) {
@@ -83,6 +87,30 @@ object Telemetry {
         }
     }
 
+    // ------------------------------------------------------------ Google account
+
+    /** Exchanges the Google ID token for a Firebase session. Returns the account's email. */
+    suspend fun signInWithGoogle(googleIdToken: String): String = withContext(Dispatchers.IO) {
+        val body = JSONObject()
+            .put("postBody", "id_token=$googleIdToken&providerId=google.com")
+            .put("requestUri", "http://localhost")
+            .put("returnSecureToken", true)
+            .toString()
+        val r = http("POST", "https://identitytoolkit.googleapis.com/v1/accounts:signInWithIdp?key=$key", body)
+        val email = r.optString("email")
+        save(r.getString("localId"), r.getString("idToken"), r.getString("refreshToken"), r.getString("expiresIn").toLong())
+        sp?.edit()?.putString("email", email)?.putBoolean("joined", false)?.apply()
+        signedInEmail.value = email
+        countedOpen = false
+        lock.withLock { try { heartbeat() } catch (_: Exception) { } }
+        email
+    }
+
+    fun signOut() {
+        sp?.edit()?.clear()?.apply()
+        signedInEmail.value = ""
+    }
+
     // ------------------------------------------------------------ notice
 
     private fun fetchConfig() {
@@ -105,11 +133,12 @@ object Telemetry {
         )
     }
 
-    // ------------------------------------------------------------ anonymous record
+    // ------------------------------------------------------------ the user's record
 
+    /** One small record per signed-in Google account. Nothing is sent when nobody is signed in. */
     private fun heartbeat() {
         val s = sp ?: return
-        val (uid, token) = signIn() ?: return
+        val (uid, token) = session() ?: return
         val now = System.currentTimeMillis()
         val fields = JSONObject()
         val mask = JSONArray()
@@ -139,23 +168,22 @@ object Telemetry {
         if (!joined) s.edit().putBoolean("joined", true).apply()
     }
 
-    /** An anonymous Firebase account: no email, no name. Returns its id and a current token. */
-    private fun signIn(): Pair<String, String>? {
+    /** The signed-in session (id, token), refreshed when it has expired. Null when nobody is signed in. */
+    private fun session(): Pair<String, String>? {
         val s = sp ?: return null
-        val uid = s.getString("uid", null); val tok = s.getString("id", null)
-        if (uid != null && tok != null && System.currentTimeMillis() < s.getLong("exp", 0) - 60_000) return uid to tok
-        val refresh = s.getString("refresh", null)
-        if (refresh != null) {
-            try {
-                val r = http("POST", "https://securetoken.googleapis.com/v1/token?key=$key",
-                    "grant_type=refresh_token&refresh_token=$refresh", "application/x-www-form-urlencoded")
-                save(r.getString("user_id"), r.getString("id_token"), r.getString("refresh_token"), r.getString("expires_in").toLong())
-                return r.getString("user_id") to r.getString("id_token")
-            } catch (_: Exception) { s.edit().remove("refresh").remove("id").putBoolean("joined", false).apply() }
+        val uid = s.getString("uid", null) ?: return null
+        val tok = s.getString("id", null)
+        if (tok != null && System.currentTimeMillis() < s.getLong("exp", 0) - 60_000) return uid to tok
+        val refresh = s.getString("refresh", null) ?: return null
+        return try {
+            val r = http("POST", "https://securetoken.googleapis.com/v1/token?key=$key",
+                "grant_type=refresh_token&refresh_token=$refresh", "application/x-www-form-urlencoded")
+            save(r.getString("user_id"), r.getString("id_token"), r.getString("refresh_token"), r.getString("expires_in").toLong())
+            r.getString("user_id") to r.getString("id_token")
+        } catch (e: HttpErr) {
+            if (e.code == 400 || e.code == 401) signOut()       // the account was removed or the session ended
+            null
         }
-        val r = http("POST", "https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=$key", """{"returnSecureToken":true}""")
-        save(r.getString("localId"), r.getString("idToken"), r.getString("refreshToken"), r.getString("expiresIn").toLong())
-        return r.getString("localId") to r.getString("idToken")
     }
 
     private fun save(uid: String, id: String, refresh: String, expiresInSec: Long) {
