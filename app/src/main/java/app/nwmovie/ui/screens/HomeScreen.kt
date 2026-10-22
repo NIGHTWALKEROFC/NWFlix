@@ -53,6 +53,7 @@ fun HomeScreen(
     val cont = remember(groups) {
         groups.filter { val v = it.view; v.lastPlayedAt > 0 && !v.watched && v.positionMs > 5000 }.sortedByDescending { it.view.lastPlayedAt }
     }
+    val because = remember(groups) { becauseYouWatched(groups) }
     val trending = remember(matched) { matched.sortedByOption(SortOption.POPULAR).take(60) }
     val topRated = remember(matched) { matched.filter { it.view.rating > 0 }.sortedByOption(SortOption.RATING_HIGH).take(60) }
     val newest = remember(matched) { matched.sortedByOption(SortOption.NEWEST).take(60) }
@@ -124,6 +125,7 @@ fun HomeScreen(
             if (featured.isNotEmpty()) item { Hero(featured, vm, onOpen) }
             if (motd != null) item { MovieOfTheDay(motd, onOpen) }
             if (cont.isNotEmpty()) item { PosterRow(cont, "Continue Watching", prefs.showTitles, null, onOpen) }
+            because.forEach { (seed, list) -> item(key = "because_${seed.id}") { PosterRow(list, "Because you watched ${seed.view.displayTitle}", prefs.showTitles, null, onOpen) } }
             if (trending.isNotEmpty()) item { PosterRow(trending, "Trending Now", prefs.showTitles, { onSeeAll(SortOption.POPULAR) }, onOpen) }
             if (topRated.isNotEmpty()) item { PosterRow(topRated, "Top Rated", prefs.showTitles, { onSeeAll(SortOption.RATING_HIGH) }, onOpen) }
             if (newest.isNotEmpty()) item { PosterRow(newest, "New Releases", prefs.showTitles, { onSeeAll(SortOption.NEWEST) }, onOpen) }
@@ -134,6 +136,27 @@ fun HomeScreen(
             } else if (unmatched.isNotEmpty()) item { PosterRow(unmatched, "Needs a match (${unmatched.size})", true, null, onOpen) }
         }
     }
+}
+
+private fun becauseYouWatched(groups: List<MovieGroup>): List<Pair<MovieGroup, List<MovieGroup>>> {
+    val seeds = groups.filter { it.view.matched && it.view.lastPlayedAt > 0 && it.view.genreList.isNotEmpty() }
+        .sortedByDescending { it.view.lastPlayedAt }
+    val candidates = groups.filter { it.view.matched && it.view.lastPlayedAt == 0L && !it.view.watched && it.view.genreList.isNotEmpty() }
+    val out = mutableListOf<Pair<MovieGroup, List<MovieGroup>>>()
+    val used = mutableSetOf<String>()
+    for (seed in seeds) {
+        if (out.size >= 2) break
+        val sg = seed.view.genreList.map { it.lowercase() }.toSet()
+        val need = minOf(2, sg.size)
+        val list = candidates.asSequence()
+            .filter { it.id !in used && it.isSeries == seed.isSeries }
+            .map { c -> c to c.view.genreList.count { it.lowercase() in sg } }
+            .filter { it.second >= need }
+            .sortedWith(compareByDescending<Pair<MovieGroup, Int>> { it.second }.thenByDescending { it.first.view.rating }.thenByDescending { it.first.view.popularity })
+            .take(20).map { it.first }.toList()
+        if (list.size >= 3) { out += seed to list; used += list.map { it.id } }
+    }
+    return out
 }
 
 @Composable
