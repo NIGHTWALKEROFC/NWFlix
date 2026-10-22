@@ -100,7 +100,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         if (auth.value is Tg.Auth.Ready && System.currentTimeMillis() - lastScan > 30_000) rescan(false)
     }
     /** Called when the app leaves the screen. */
-    fun stopScan() { scanJob?.cancel() }
 
     // ----- library -----
     private fun idsOf(id: String): List<String> {
@@ -111,7 +110,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
     fun toggleWatch(m: Movie) { val ids = idsOf(m.id); val v = !m.watchlist; viewModelScope.launch { sl.db.movies().setWatchlistMany(ids, v) } }
     fun toggleFav(m: Movie) { val ids = idsOf(m.id); val v = !m.favorite; viewModelScope.launch { sl.db.movies().setFavoriteMany(ids, v) } }
-    fun clearHistory(id: String) { val ids = idsOf(id); viewModelScope.launch { sl.db.movies().clearHistoryMany(ids) } }
     fun deleteMany(ids: Collection<String>) { viewModelScope.launch { ids.forEach { sl.downloads.delete(it) }; say("Deleted ${ids.size} download(s)") } }
 
     fun addSearch(q: String) {
@@ -181,8 +179,4 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     // ----- downloads (per file) -----
     fun download(m: Movie) { viewModelScope.launch { say(sl.downloads.enqueue(m) ?: "Download started") } }
-    fun pauseDl(id: String) { viewModelScope.launch { sl.downloads.pause(id) } }
-    fun resumeDl(id: String) { viewModelScope.launch { sl.downloads.resume(id) } }
-    fun cancelDl(id: String) { viewModelScope.launch { sl.downloads.cancel(id) } }
-    fun deleteDl(id: String) { viewModelScope.launch { sl.downloads.delete(id) } }
 }
