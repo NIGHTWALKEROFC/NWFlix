@@ -1,5 +1,7 @@
 package app.nwmovie.ui.screens
 
+import app.nwmovie.ui.theme.NWButton
+import app.nwmovie.ui.theme.NWOutlinedButton
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -106,7 +108,7 @@ fun DetailScreen(vm: MainViewModel, id: String, onBack: () -> Unit, onPlay: (Str
                 }
                 Spacer(Modifier.height(14.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Button(onClick = { if (group.isSeries && q == null) vm.say("Pick a quality below first") else onPlay(playTarget.id) }, modifier = Modifier.weight(1f).height(50.dp), shape = RoundedCornerShape(12.dp)) {
+                    NWButton(onClick = { if (group.isSeries && q == null) vm.say("Pick a quality below first") else onPlay(playTarget.id) }, modifier = Modifier.weight(1f).height(50.dp), shape = RoundedCornerShape(12.dp)) {
                         Icon(Icons.Default.PlayArrow, null); Spacer(Modifier.width(6.dp)); Text(when {
                             group.isSeries && q == null -> "Choose quality"
                             group.isSeries -> (if (group.resumeFile != null) "Resume" else "Play") + " S%02dE%02d".format(playTarget.season, playTarget.episode)
@@ -114,7 +116,7 @@ fun DetailScreen(vm: MainViewModel, id: String, onBack: () -> Unit, onPlay: (Str
                             else -> "Play"
                         })
                     }
-                    OutlinedButton(onClick = { vm.toggleWatch(m) }, modifier = Modifier.height(50.dp), shape = RoundedCornerShape(12.dp)) {
+                    NWOutlinedButton(onClick = { vm.toggleWatch(m) }, modifier = Modifier.height(50.dp), shape = RoundedCornerShape(12.dp)) {
                         Icon(if (m.watchlist) Icons.Default.Check else Icons.Default.Add, null); Spacer(Modifier.width(6.dp)); Text("My List")
                     }
                 }
@@ -283,7 +285,7 @@ private fun FixMatchDialog(vm: MainViewModel, m: Movie, onClose: () -> Unit) {
                 OutlinedTextField(q, { q = it }, label = { Text("Title") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(year, { year = it.filter(Char::isDigit).take(4) }, label = { Text("Year (optional)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(8.dp))
-                Button(onClick = { loading = true; scope.launch { results = vm.searchTmdb(q, year.toIntOrNull() ?: 0, m.isSeries); loading = false } }) { Text("Search") }
+                NWButton(onClick = { loading = true; scope.launch { results = vm.searchTmdb(q, year.toIntOrNull() ?: 0, m.isSeries); loading = false } }) { Text("Search") }
                 if (loading) LinearProgressIndicator(Modifier.fillMaxWidth().padding(top = 8.dp))
                 results?.let { r ->
                     if (r.isEmpty() && !loading) Text("No results. Try a shorter title.", style = MaterialTheme.typography.bodySmall)
