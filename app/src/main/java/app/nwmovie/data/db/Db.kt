@@ -44,11 +44,8 @@ data class DownloadItem(
 @Dao
 interface MovieDao {
     @Query("SELECT * FROM movies ORDER BY addedAt DESC") fun all(): Flow<List<Movie>>
-    @Query("SELECT * FROM movies WHERE id = :id") fun observe(id: String): Flow<Movie?>
     @Query("SELECT * FROM movies WHERE id = :id") suspend fun get(id: String): Movie?
     @Query("SELECT id FROM movies") suspend fun keys(): List<String>
-    @Query("SELECT * FROM movies WHERE tmdbId = 0 AND triedAt = 0 LIMIT 400") suspend fun unmatchedNew(): List<Movie>
-    @Query("SELECT * FROM movies WHERE tmdbId = 0 LIMIT 400") suspend fun unmatchedAll(): List<Movie>
     @Query("SELECT * FROM movies WHERE tmdbId = 0 AND triedAt < :before LIMIT :n") suspend fun unmatchedBefore(before: Long, n: Int): List<Movie>
     @Query("SELECT COUNT(*) FROM movies WHERE tmdbId = 0 AND triedAt < :before") suspend fun countUnmatchedBefore(before: Long): Int
     @Insert(onConflict = OnConflictStrategy.IGNORE) suspend fun insertAll(list: List<Movie>)
@@ -56,9 +53,6 @@ interface MovieDao {
     @Query("UPDATE movies SET fileId = :fileId WHERE id = :id") suspend fun setFileId(id: String, fileId: Int)
     @Query("UPDATE movies SET positionMs = :pos, durationMs = :dur, lastPlayedAt = :t, watched = :w WHERE id = :id")
     suspend fun progress(id: String, pos: Long, dur: Long, t: Long, w: Boolean)
-    @Query("UPDATE movies SET watchlist = :v WHERE id = :id") suspend fun setWatchlist(id: String, v: Boolean)
-    @Query("UPDATE movies SET favorite = :v WHERE id = :id") suspend fun setFavorite(id: String, v: Boolean)
-    @Query("UPDATE movies SET lastPlayedAt = 0, positionMs = 0 WHERE id = :id") suspend fun clearHistory(id: String)
     @Query("UPDATE movies SET lastPlayedAt = 0, positionMs = 0") suspend fun clearAllHistory()
     @Query("SELECT * FROM movies") suspend fun allOnce(): List<Movie>
     @Query("UPDATE movies SET watchedMs = watchedMs + :ms WHERE id = :id") suspend fun addWatched(id: String, ms: Long)
@@ -69,7 +63,6 @@ interface MovieDao {
     @Query("UPDATE movies SET caption = :c WHERE id = :id AND caption = ''") suspend fun setCaption(id: String, c: String)
     @Query("UPDATE movies SET watchlist = :v WHERE id IN (:ids)") suspend fun setWatchlistMany(ids: List<String>, v: Boolean)
     @Query("UPDATE movies SET favorite = :v WHERE id IN (:ids)") suspend fun setFavoriteMany(ids: List<String>, v: Boolean)
-    @Query("UPDATE movies SET lastPlayedAt = 0, positionMs = 0 WHERE id IN (:ids)") suspend fun clearHistoryMany(ids: List<String>)
     /** Clears the index but keeps anything the user personally saved (lists, favourites, history). */
     @Query("DELETE FROM movies WHERE watchlist = 0 AND favorite = 0 AND lastPlayedAt = 0") suspend fun clearIndexKeepUserData()
 }
@@ -79,9 +72,7 @@ interface DownloadDao {
     @Query("SELECT * FROM downloads ORDER BY createdAt DESC") fun all(): Flow<List<DownloadItem>>
     @Query("SELECT * FROM downloads") suspend fun list(): List<DownloadItem>
     @Query("SELECT * FROM downloads WHERE id = :id") suspend fun get(id: String): DownloadItem?
-    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsert(d: DownloadItem)
     @Query("DELETE FROM downloads WHERE id = :id") suspend fun delete(id: String)
-    @Query("UPDATE downloads SET state = :state WHERE id = :id") suspend fun setState(id: String, state: String)
     @Query("UPDATE downloads SET done = :done, total = :total WHERE id = :id") suspend fun setProgress(id: String, done: Long, total: Long)
 }
 
