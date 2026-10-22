@@ -1,5 +1,6 @@
 package app.nwmovie.ui.screens
 
+import app.nwmovie.ui.theme.NWButton
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -125,7 +126,7 @@ fun OtpGuideDialog(lang: String, onLang: (String) -> Unit, onClose: () -> Unit) 
                             "ഒരുപാട് ശ്രമിച്ചാൽ Telegram കുറച്ച് മണിക്കൂർ ലോഗിൻ തടയും. കാത്തിരുന്ന് വീണ്ടും ശ്രമിക്കുക."))
                 }
                 Spacer(Modifier.height(8.dp))
-                Button(onClick = { if (!openTelegram(ctx)) android.widget.Toast.makeText(ctx, tr(lang, "Telegram is not installed", "Telegram ഇൻസ്റ്റാൾ ചെയ്തിട്ടില്ല"), android.widget.Toast.LENGTH_SHORT).show() },
+                NWButton(onClick = { if (!openTelegram(ctx)) android.widget.Toast.makeText(ctx, tr(lang, "Telegram is not installed", "Telegram ഇൻസ്റ്റാൾ ചെയ്തിട്ടില്ല"), android.widget.Toast.LENGTH_SHORT).show() },
                     Modifier.fillMaxWidth().height(50.dp), shape = RoundedCornerShape(14.dp)) {
                     Icon(Icons.Default.Send, null); Spacer(Modifier.width(8.dp)); Text(tr(lang, "Open Telegram", "Telegram തുറക്കുക"))
                 }
