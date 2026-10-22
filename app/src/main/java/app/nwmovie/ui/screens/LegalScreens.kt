@@ -44,6 +44,9 @@ private val LEGAL: Map<String, LegalDoc> = mapOf(
             "It never includes your Telegram number or username, chat names, file names, movie titles or what you watch.",
             "You can switch the statistics off at any time in Settings → Privacy & Security → Share anonymous usage statistics, and sign out of Google in Settings → Account & Security. Signing out stops the records.",
         ),
+        "The download website" to listOf(
+            "The website only serves the app file and these documents. It does not use cookies or analytics. The download page loads release information from GitHub. If you type your phone's name to find the right file, that name is sent to Wikipedia to look it up. GitHub and Wikipedia can see your IP address when this happens.",
+        ),
         "Messages from the developer" to listOf(
             "The app checks a small public notice from time to time. It can show a message (for example about an update) or tell you the app is under maintenance. This notice is the same for everyone and does not use your personal information.",
         ),
