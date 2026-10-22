@@ -58,7 +58,8 @@ object Telemetry {
     fun init(c: Context, scope: CoroutineScope) {
         if (!configured || started) return
         started = true
-        sp = c.applicationContext.getSharedPreferences("nw_account", Context.MODE_PRIVATE)
+        c.applicationContext.deleteSharedPreferences("nw_account")
+        sp = Secrets.account(c.applicationContext)
         signedInEmail.value = sp?.getString("email", "").orEmpty()
         scope.launch(Dispatchers.IO) {
             delay(3000)
@@ -92,7 +93,7 @@ object Telemetry {
     /** Exchanges the Google ID token for a Firebase session. Returns the account's email. */
     suspend fun signInWithGoogle(googleIdToken: String): String = withContext(Dispatchers.IO) {
         val body = JSONObject()
-            .put("postBody", "id_token=$googleIdToken&providerId=google.com")
+            .put("postBody", "id_token=${java.net.URLEncoder.encode(googleIdToken, "UTF-8")}&providerId=google.com")
             .put("requestUri", "http://localhost")
             .put("returnSecureToken", true)
             .toString()
@@ -128,7 +129,7 @@ object Telemetry {
         remote.value = Remote(
             maintenanceOn = bool("maintenanceOn"), maintenanceTitle = str("maintenanceTitle"), maintenanceMessage = str("maintenanceMessage"),
             annId = str("annId"), annTitle = str("annTitle"), annMessage = str("annMessage"),
-            annButtonText = str("annButtonText"), annButtonUrl = str("annButtonUrl"), annDismissible = bool("annDismissible", true),
+            annButtonText = str("annButtonText"), annButtonUrl = str("annButtonUrl").takeIf { it.startsWith("https://") }.orEmpty(), annDismissible = bool("annDismissible", true),
             annExpiresAt = ts("annExpiresAt"), annMinVersion = int("annMinVersion"), annMaxVersion = int("annMaxVersion"), annCountry = str("annCountry")
         )
     }
@@ -177,7 +178,7 @@ object Telemetry {
         val refresh = s.getString("refresh", null) ?: return null
         return try {
             val r = http("POST", "https://securetoken.googleapis.com/v1/token?key=$key",
-                "grant_type=refresh_token&refresh_token=$refresh", "application/x-www-form-urlencoded")
+                "grant_type=refresh_token&refresh_token=${java.net.URLEncoder.encode(refresh, "UTF-8")}", "application/x-www-form-urlencoded")
             save(r.getString("user_id"), r.getString("id_token"), r.getString("refresh_token"), r.getString("expires_in").toLong())
             r.getString("user_id") to r.getString("id_token")
         } catch (e: HttpErr) {
@@ -192,6 +193,17 @@ object Telemetry {
     }
 
     // ------------------------------------------------------------ helpers
+
+    private fun java.io.InputStream.readUpTo(max: Int): ByteArray {
+        val out = java.io.ByteArrayOutputStream()
+        val buf = ByteArray(8192)
+        while (out.size() < max) {
+            val n = read(buf, 0, minOf(buf.size, max - out.size()))
+            if (n < 0) break
+            out.write(buf, 0, n)
+        }
+        return out.toByteArray()
+    }
 
     private fun iso(ms: Long): String =
         SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply { timeZone = TimeZone.getTimeZone("UTC") }.format(Date(ms))
@@ -212,7 +224,7 @@ object Telemetry {
                 c.outputStream.use { it.write(body.toByteArray()) }
             }
             val code = c.responseCode
-            val text = (if (code in 200..299) c.inputStream else c.errorStream)?.bufferedReader()?.use { it.readText() }.orEmpty()
+            val text = (if (code in 200..299) c.inputStream else c.errorStream)?.use { String(it.readUpTo(1_048_576)) }.orEmpty()
             if (code !in 200..299) throw HttpErr(code, "HTTP $code")
             return JSONObject(text.ifBlank { "{}" })
         } finally { c.disconnect() }
