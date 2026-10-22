@@ -1,5 +1,6 @@
 package app.nwmovie.ui.screens
 
+import app.nwmovie.ui.theme.NWButton
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
@@ -46,7 +47,7 @@ fun RemoteHost(vm: MainViewModel) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center
                 )
                 Spacer(Modifier.height(20.dp))
-                Button(onClick = { scope.launch { Telemetry.refresh() } }) { Text("Try again") }
+                NWButton(onClick = { scope.launch { Telemetry.refresh() } }) { Text("Try again") }
             }
         }
         return
@@ -68,7 +69,7 @@ fun RemoteHost(vm: MainViewModel) {
             text = { Text(r.annMessage) },
             confirmButton = {
                 if (r.annButtonText.isNotBlank() && r.annButtonUrl.startsWith("https://")) {
-                    Button(onClick = {
+                    NWButton(onClick = {
                         try { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(r.annButtonUrl)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } catch (_: Exception) { }
                         close()
                     }) { Text(r.annButtonText) }
