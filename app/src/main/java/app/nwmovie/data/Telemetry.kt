@@ -97,7 +97,13 @@ object Telemetry {
             .put("requestUri", "http://localhost")
             .put("returnSecureToken", true)
             .toString()
-        val r = http("POST", "https://identitytoolkit.googleapis.com/v1/accounts:signInWithIdp?key=$key", body)
+        val r = try {
+            http("POST", "https://identitytoolkit.googleapis.com/v1/accounts:signInWithIdp?key=$key", body)
+        } catch (e: HttpErr) {
+            // 4xx means Firebase did not accept the Google token: the Web client ID or the SHA-1 does not match this build
+            if (e.code in 400..403) throw GoogleAuth.Failed("Google sign-in is not set up correctly for this version of NWFlix (code ${e.code}). Please contact the developer.")
+            throw e
+        }
         val email = r.optString("email")
         save(r.getString("localId"), r.getString("idToken"), r.getString("refreshToken"), r.getString("expiresIn").toLong())
         sp?.edit()?.putString("email", email)?.putBoolean("joined", false)?.apply()
