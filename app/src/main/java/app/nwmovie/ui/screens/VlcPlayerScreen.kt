@@ -1,5 +1,6 @@
 package app.nwmovie.ui.screens
 
+import app.nwmovie.ui.theme.NWOutlinedButton
 import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import android.net.Uri
@@ -331,13 +332,13 @@ fun VlcPlayerScreen(vm: MainViewModel, id: String, onBack: () -> Unit, onNext: (
         hud?.let { h -> Text(h, color = Color.White, modifier = Modifier.align(Alignment.TopCenter).padding(top = 72.dp).background(Color.Black.copy(alpha = 0.65f), RoundedCornerShape(10.dp)).padding(horizontal = 14.dp, vertical = 8.dp)) }
 
         error?.let { msg ->
-            Card(Modifier.align(Alignment.Center).padding(24.dp).widthIn(max = 420.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF1A2140))) {
+            Card(Modifier.align(Alignment.Center).padding(24.dp).widthIn(max = 420.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF171825))) {
                 Column(Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(Icons.Default.ErrorOutline, null, tint = Color(0xFFFF6B8A), modifier = Modifier.size(40.dp))
                     Spacer(Modifier.height(8.dp))
-                    Text(msg, color = Color(0xFFCBD0F0), textAlign = TextAlign.Center)
+                    Text(msg, color = Color(0xFFBABCD2), textAlign = TextAlign.Center)
                     Spacer(Modifier.height(12.dp))
-                    OutlinedButton(onClick = onBack) { Text("Back") }
+                    NWOutlinedButton(onClick = onBack) { Text("Back") }
                 }
             }
         }
@@ -399,10 +400,10 @@ fun VlcPlayerScreen(vm: MainViewModel, id: String, onBack: () -> Unit, onNext: (
             "subs" -> PlayerSheet("Subtitles", { sheet = null }) {
                 PlayerOpt("Off", curSpu == -1) { mp.setSpuTrack(-1); curSpu = -1 }
                 spuTracks.filter { it.id != -1 }.forEach { t -> PlayerOpt(vlcTrackName(t.name, t.id), curSpu == t.id) { mp.setSpuTrack(t.id); curSpu = t.id } }
-                OutlinedButton(onClick = { picker.launch(arrayOf("*/*")) }, Modifier.fillMaxWidth().padding(top = 6.dp)) { Icon(Icons.Default.FolderOpen, null); Spacer(Modifier.width(8.dp)); Text("Load subtitle file (.srt .vtt .ass)") }
+                NWOutlinedButton(onClick = { picker.launch(arrayOf("*/*")) }, Modifier.fillMaxWidth().padding(top = 6.dp)) { Icon(Icons.Default.FolderOpen, null); Spacer(Modifier.width(8.dp)); Text("Load subtitle file (.srt .vtt .ass)") }
                 Text("Subtitle delay: $subDelay ms", Modifier.padding(top = 12.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    listOf(-500, -100, 100, 500).forEach { d -> OutlinedButton(onClick = { subDelay += d; mp.setSpuDelay(subDelay * 1000L) }, contentPadding = PaddingValues(8.dp)) { Text(if (d > 0) "+$d" else "$d") } }
+                    listOf(-500, -100, 100, 500).forEach { d -> NWOutlinedButton(onClick = { subDelay += d; mp.setSpuDelay(subDelay * 1000L) }, contentPadding = PaddingValues(8.dp)) { Text(if (d > 0) "+$d" else "$d") } }
                     TextButton(onClick = { subDelay = 0; mp.setSpuDelay(0) }) { Text("Reset") }
                 }
             }
@@ -411,7 +412,7 @@ fun VlcPlayerScreen(vm: MainViewModel, id: String, onBack: () -> Unit, onNext: (
                 audioTracks.filter { it.id != -1 }.forEach { t -> PlayerOpt(vlcTrackName(t.name, t.id), curAudio == t.id) { mp.setAudioTrack(t.id); curAudio = t.id } }
                 Text("Audio delay: $audioDelay ms", Modifier.padding(top = 12.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    listOf(-500, -100, 100, 500).forEach { d -> OutlinedButton(onClick = { audioDelay += d; mp.setAudioDelay(audioDelay * 1000L) }, contentPadding = PaddingValues(8.dp)) { Text(if (d > 0) "+$d" else "$d") } }
+                    listOf(-500, -100, 100, 500).forEach { d -> NWOutlinedButton(onClick = { audioDelay += d; mp.setAudioDelay(audioDelay * 1000L) }, contentPadding = PaddingValues(8.dp)) { Text(if (d > 0) "+$d" else "$d") } }
                     TextButton(onClick = { audioDelay = 0; mp.setAudioDelay(0) }) { Text("Reset") }
                 }
                 Text("Volume goes up to 200 %: swipe up on the right side of the screen.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
