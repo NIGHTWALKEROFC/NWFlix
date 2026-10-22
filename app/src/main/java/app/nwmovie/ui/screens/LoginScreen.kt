@@ -1,5 +1,7 @@
 package app.nwmovie.ui.screens
 
+import app.nwmovie.ui.theme.NWButton
+import app.nwmovie.ui.theme.NWOutlinedButton
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -113,7 +115,7 @@ fun LoginScreen(vm: MainViewModel) {
             )
             is Tg.Auth.WaitPhone -> {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedButton(
+                    NWOutlinedButton(
                         onClick = { pickCountry = true }, shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.height(56.dp), contentPadding = PaddingValues(horizontal = 12.dp)
                     ) {
@@ -134,7 +136,7 @@ fun LoginScreen(vm: MainViewModel) {
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.fillMaxWidth().padding(top = 6.dp))
                 Spacer(Modifier.height(12.dp))
-                Button(onClick = { vm.submitPhone(Countries.fullNumber(country, phone)) }, enabled = phone.count { it.isDigit() } > 5 && !busy,
+                NWButton(onClick = { vm.submitPhone(Countries.fullNumber(country, phone)) }, enabled = phone.count { it.isDigit() } > 5 && !busy,
                     modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(14.dp)) {
                     if (busy) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp) else { Icon(Icons.Default.Send, null); Spacer(Modifier.width(8.dp)); Text("Login with Telegram") }
                 }
@@ -156,7 +158,7 @@ fun LoginScreen(vm: MainViewModel) {
                     style = MaterialTheme.typography.bodyMedium
                 )
                 Spacer(Modifier.height(14.dp))
-                OutlinedButton(onClick = { if (!openTelegram(ctx)) vm.say("Telegram is not installed on this phone") },
+                NWOutlinedButton(onClick = { if (!openTelegram(ctx)) vm.say("Telegram is not installed on this phone") },
                     Modifier.fillMaxWidth().height(48.dp), shape = RoundedCornerShape(14.dp)) {
                     Icon(Icons.Default.Send, null); Spacer(Modifier.width(8.dp)); Text(tr(prefs.uiLang, "Open Telegram to see the code", "കോഡ് കാണാൻ Telegram തുറക്കുക"))
                 }
@@ -170,7 +172,7 @@ fun LoginScreen(vm: MainViewModel) {
                 Spacer(Modifier.height(10.dp))
                 Field("Password", pass, { pass = it }, KeyboardType.Password, hidden = true)
                 Spacer(Modifier.height(8.dp))
-                Button(onClick = { vm.submitPassword(pass) }, enabled = pass.isNotEmpty() && !busy,
+                NWButton(onClick = { vm.submitPassword(pass) }, enabled = pass.isNotEmpty() && !busy,
                     modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(14.dp)) { Text("Continue") }
             }
             is Tg.Auth.Unsupported -> Text(a.msg, color = MaterialTheme.colorScheme.error, textAlign = TextAlign.Center)
