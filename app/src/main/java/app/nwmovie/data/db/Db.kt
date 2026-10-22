@@ -54,6 +54,7 @@ interface MovieDao {
     @Query("UPDATE movies SET positionMs = :pos, durationMs = :dur, lastPlayedAt = :t, watched = :w WHERE id = :id")
     suspend fun progress(id: String, pos: Long, dur: Long, t: Long, w: Boolean)
     @Query("UPDATE movies SET lastPlayedAt = 0, positionMs = 0") suspend fun clearAllHistory()
+    @Query("UPDATE movies SET lastPlayedAt = 0, positionMs = 0 WHERE id IN (:ids)") suspend fun clearHistoryFor(ids: List<String>)
     @Query("SELECT * FROM movies") suspend fun allOnce(): List<Movie>
     @Query("UPDATE movies SET watchedMs = watchedMs + :ms WHERE id = :id") suspend fun addWatched(id: String, ms: Long)
     @Query("UPDATE movies SET watched = 1, positionMs = 0, lastPlayedAt = CASE WHEN lastPlayedAt = 0 THEN :t ELSE lastPlayedAt END WHERE id IN (:ids)")
@@ -72,6 +73,8 @@ interface DownloadDao {
     @Query("SELECT * FROM downloads ORDER BY createdAt DESC") fun all(): Flow<List<DownloadItem>>
     @Query("SELECT * FROM downloads") suspend fun list(): List<DownloadItem>
     @Query("SELECT * FROM downloads WHERE id = :id") suspend fun get(id: String): DownloadItem?
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsert(item: DownloadItem)
+    @Query("UPDATE downloads SET state = :state WHERE id = :id") suspend fun setState(id: String, state: String)
     @Query("DELETE FROM downloads WHERE id = :id") suspend fun delete(id: String)
     @Query("UPDATE downloads SET done = :done, total = :total WHERE id = :id") suspend fun setProgress(id: String, done: Long, total: Long)
 }
