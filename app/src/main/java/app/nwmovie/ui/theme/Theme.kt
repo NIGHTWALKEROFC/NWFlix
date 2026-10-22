@@ -1,53 +1,136 @@
 package app.nwmovie.ui.theme
 
-import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.nwmovie.data.Prefs
 
-val Accents = listOf(0xFF8B6CFF, 0xFF5B6CFF, 0xFFD25CC8, 0xFFFF9F45, 0xFF4CC38A, 0xFFF0607E).map { Color(it) }
+/** Colour tokens of the NWFlix design (dark only). */
+object NW {
+    val VoidCanvas = Color(0xFF010314)
+    val ObsidianSurface = Color(0xFF171825)
+    val SlateLayer = Color(0xFF2A2B3A)
+    val CarbonBorder = Color(0xFF343543)
+    val AshText = Color(0xFF5E6077)
+    val FogText = Color(0xFF9FA2B9)
+    val MistText = Color(0xFFBABCD2)
+    val LunarWhite = Color(0xFFDFE1F4)
+    val FrostWhite = Color(0xFFECECFB)
+    val UltravioletKey = Color(0xFFB88CFF)
+    val DeepIris = Color(0xFF6633EE)
+    val AmethystGlow = Color(0xFF8E64FF)
+    val ShadowIris = Color(0xFF2E2A4C)
+    val PlumDepth = Color(0xFF1F1D3A)
+    val CodeRose = Color(0xFFF92672)
+}
 
-private val Serif = FontFamily.Serif
+/** Accent choices in Settings → Appearance. The first one is the brand violet. */
+val Accents = listOf(NW.UltravioletKey, NW.AmethystGlow, Color(0xFFE08CFF), Color(0xFFFFB86B), Color(0xFF6FE3B0), NW.CodeRose)
 
+private val Sans = FontFamily.SansSerif
+
+// Headlines: tight negative tracking. Body and UI: comfortable line height.
 val NWTypography = Typography(
-    headlineLarge = TextStyle(fontFamily = Serif, fontWeight = FontWeight.Bold, fontSize = 30.sp, letterSpacing = 1.sp),
-    headlineMedium = TextStyle(fontFamily = Serif, fontWeight = FontWeight.Bold, fontSize = 24.sp, letterSpacing = 0.5.sp),
-    titleLarge = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.SemiBold, fontSize = 20.sp),
-    titleMedium = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.SemiBold, fontSize = 16.sp),
-    bodyLarge = TextStyle(fontFamily = FontFamily.SansSerif, fontSize = 15.sp, lineHeight = 22.sp),
-    bodyMedium = TextStyle(fontFamily = FontFamily.SansSerif, fontSize = 13.sp, lineHeight = 19.sp),
-    bodySmall = TextStyle(fontFamily = FontFamily.SansSerif, fontSize = 11.sp, lineHeight = 15.sp),
-    labelLarge = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.Medium, fontSize = 14.sp),
-    labelMedium = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.Medium, fontSize = 12.sp)
+    headlineLarge = TextStyle(fontFamily = Sans, fontWeight = FontWeight.SemiBold, fontSize = 32.sp, lineHeight = 36.sp, letterSpacing = (-0.8).sp),
+    headlineMedium = TextStyle(fontFamily = Sans, fontWeight = FontWeight.SemiBold, fontSize = 26.sp, lineHeight = 31.sp, letterSpacing = (-0.6).sp),
+    headlineSmall = TextStyle(fontFamily = Sans, fontWeight = FontWeight.SemiBold, fontSize = 22.sp, lineHeight = 28.sp, letterSpacing = (-0.4).sp),
+    titleLarge = TextStyle(fontFamily = Sans, fontWeight = FontWeight.SemiBold, fontSize = 20.sp, lineHeight = 26.sp, letterSpacing = (-0.3).sp),
+    titleMedium = TextStyle(fontFamily = Sans, fontWeight = FontWeight.Medium, fontSize = 16.sp, lineHeight = 22.sp, letterSpacing = (-0.18).sp),
+    bodyLarge = TextStyle(fontFamily = Sans, fontSize = 15.sp, lineHeight = 23.sp),
+    bodyMedium = TextStyle(fontFamily = Sans, fontSize = 13.sp, lineHeight = 20.sp),
+    bodySmall = TextStyle(fontFamily = Sans, fontSize = 11.sp, lineHeight = 17.sp),
+    labelLarge = TextStyle(fontFamily = Sans, fontWeight = FontWeight.Medium, fontSize = 14.sp),
+    labelMedium = TextStyle(fontFamily = Sans, fontWeight = FontWeight.Medium, fontSize = 12.sp)
+)
+
+private val NWShapes = Shapes(
+    extraSmall = RoundedCornerShape(8.dp),     // badges
+    small = RoundedCornerShape(12.dp),         // inputs
+    medium = RoundedCornerShape(16.dp),        // cards
+    large = RoundedCornerShape(20.dp),
+    extraLarge = RoundedCornerShape(28.dp)
 )
 
 @Composable
 fun NWTheme(p: Prefs, content: @Composable () -> Unit) {
     val accent = Accents[p.accent.coerceIn(0, Accents.lastIndex)]
-    val light = p.theme == "light"
-    val scheme = if (light) lightColorScheme(
-        primary = accent, onPrimary = Color.White, background = Color(0xFFF4F5FB), onBackground = Color(0xFF0E1330),
-        surface = Color.White, onSurface = Color(0xFF0E1330), surfaceVariant = Color(0xFFE6E8F5),
-        onSurfaceVariant = Color(0xFF5B6180), outline = Color(0xFFCBCEE3), secondaryContainer = accent.copy(alpha = 0.18f)
-    ) else {
-        val bg = if (p.theme == "amoled") Color.Black else Color(0xFF07060F)
-        val surf = if (p.theme == "amoled") Color(0xFF0B0A12) else Color(0xFF100E1F)
-        darkColorScheme(
-            primary = accent, onPrimary = Color.White, background = bg, onBackground = Color(0xFFEDEBFF),
-            surface = surf, onSurface = Color(0xFFEDEBFF), surfaceVariant = Color(0xFF1D1A38),
-            onSurfaceVariant = Color(0xFFA7A3CC), outline = Color(0xFF302B57), secondaryContainer = accent.copy(alpha = 0.25f)
-        )
-    }
+    val canvas = if (p.theme == "amoled") Color.Black else NW.VoidCanvas
+    val scheme = darkColorScheme(
+        primary = accent, onPrimary = NW.VoidCanvas,
+        primaryContainer = NW.PlumDepth, onPrimaryContainer = NW.FrostWhite,
+        secondary = NW.AmethystGlow, onSecondary = Color.White,
+        secondaryContainer = NW.ShadowIris, onSecondaryContainer = NW.FrostWhite,
+        tertiary = NW.DeepIris, onTertiary = Color.White,
+        background = canvas, onBackground = NW.LunarWhite,
+        surface = NW.ObsidianSurface, onSurface = NW.LunarWhite,
+        surfaceVariant = NW.SlateLayer, onSurfaceVariant = NW.FogText,
+        surfaceTint = Color.Transparent,
+        surfaceContainerLowest = canvas, surfaceContainerLow = Color(0xFF0C0D1D), surfaceContainer = NW.ObsidianSurface,
+        surfaceContainerHigh = Color(0xFF202131), surfaceContainerHighest = NW.SlateLayer,
+        outline = NW.CarbonBorder, outlineVariant = NW.ShadowIris,
+        error = NW.CodeRose, onError = Color.White
+    )
     val d = LocalDensity.current
     CompositionLocalProvider(LocalDensity provides Density(d.density, d.fontScale * p.fontScale)) {
-        MaterialTheme(colorScheme = scheme, typography = NWTypography, content = content)
+        MaterialTheme(colorScheme = scheme, typography = NWTypography, shapes = NWShapes, content = content)
     }
 }
+
+/** Main button: white pill with dark text. The shape argument is only there so existing calls keep compiling. */
+@Composable
+fun NWButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    shape: Shape = CircleShape,
+    colors: ButtonColors? = null,
+    elevation: ButtonElevation? = null,
+    border: BorderStroke? = null,
+    contentPadding: PaddingValues = PaddingValues(horizontal = 20.dp, vertical = 10.dp),
+    interactionSource: MutableInteractionSource? = null,
+    content: @Composable RowScope.() -> Unit
+) = Button(
+    onClick = onClick, modifier = modifier, enabled = enabled, shape = CircleShape,
+    colors = colors ?: ButtonDefaults.buttonColors(
+        containerColor = Color.White, contentColor = NW.VoidCanvas,
+        disabledContainerColor = NW.SlateLayer, disabledContentColor = NW.AshText
+    ),
+    elevation = elevation, border = border, contentPadding = contentPadding,
+    interactionSource = interactionSource, content = content
+)
+
+/** Secondary button: transparent pill with a thin border. */
+@Composable
+fun NWOutlinedButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    shape: Shape = CircleShape,
+    colors: ButtonColors? = null,
+    elevation: ButtonElevation? = null,
+    border: BorderStroke? = null,
+    contentPadding: PaddingValues = PaddingValues(horizontal = 20.dp, vertical = 10.dp),
+    interactionSource: MutableInteractionSource? = null,
+    content: @Composable RowScope.() -> Unit
+) = OutlinedButton(
+    onClick = onClick, modifier = modifier, enabled = enabled, shape = CircleShape,
+    colors = colors ?: ButtonDefaults.outlinedButtonColors(contentColor = NW.LunarWhite, disabledContentColor = NW.AshText),
+    elevation = elevation, border = border ?: BorderStroke(1.dp, NW.CarbonBorder), contentPadding = contentPadding,
+    interactionSource = interactionSource, content = content
+)
