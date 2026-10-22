@@ -122,6 +122,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
     fun clearSearchHistory() { viewModelScope.launch { sl.settings.set(K.searchHistory, "") } }
 
+    fun clearHistory(id: String) { val ids = idsOf(id); viewModelScope.launch { sl.db.movies().clearHistoryFor(ids); say("Removed from history") } }
     fun clearAllHistory() { viewModelScope.launch { sl.db.movies().clearAllHistory(); say("Viewing history cleared") } }
     fun loadDetails(m: Movie) { viewModelScope.launch { try { sl.indexer.refreshDetails(m) } catch (_: Exception) { } } }
 
@@ -178,5 +179,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ----- downloads (per file) -----
+    fun pauseDl(id: String) { viewModelScope.launch { sl.downloads.pause(id) } }
+    fun resumeDl(id: String) {
+        viewModelScope.launch {
+            val block = NetPolicy.downloadBlock(prefs.value) ?: sl.downloads.scheduleBlock(prefs.value)
+            if (block != null) { say(block.replaceFirstChar { it.uppercase() }); return@launch }
+            sl.downloads.resume(id)
+        }
+    }
+    fun cancelDl(id: String) { viewModelScope.launch { sl.downloads.cancel(id) } }
+    fun deleteDl(id: String) { viewModelScope.launch { sl.downloads.delete(id) } }
     fun download(m: Movie) { viewModelScope.launch { say(sl.downloads.enqueue(m) ?: "Download started") } }
 }
