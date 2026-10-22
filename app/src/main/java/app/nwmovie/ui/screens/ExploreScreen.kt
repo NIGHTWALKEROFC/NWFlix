@@ -1,5 +1,7 @@
 package app.nwmovie.ui.screens
 
+import app.nwmovie.ui.theme.NWButton
+import app.nwmovie.ui.theme.NWOutlinedButton
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
@@ -122,7 +124,7 @@ fun ExploreScreen(vm: MainViewModel, onOpen: (String) -> Unit, onPerson: (String
                     FilledTonalButton(onClick = { sortOpen = true }, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)) {
                         Icon(Icons.Default.SwapVert, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text(sort.short)
                     }
-                    OutlinedButton(onClick = { filterOpen = true }, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)) {
+                    NWOutlinedButton(onClick = { filterOpen = true }, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)) {
                         Icon(Icons.Default.FilterList, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp))
                         Text(if (activeFilters > 0) "Filters · $activeFilters" else "Filters")
                     }
@@ -141,7 +143,7 @@ fun ExploreScreen(vm: MainViewModel, onOpen: (String) -> Unit, onPerson: (String
                     )
                     Spacer(Modifier.height(10.dp))
                     if (scan.running) Text(scan.phase.ifBlank { "Working…" }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    else OutlinedButton(onClick = { vm.rescan(true) }) { Text("Try matching again") }
+                    else NWOutlinedButton(onClick = { vm.rescan(true) }) { Text("Try matching again") }
                 }
             }
         }
@@ -178,8 +180,8 @@ fun ExploreScreen(vm: MainViewModel, onOpen: (String) -> Unit, onPerson: (String
             ChipGroup("Type", listOf("Any", "Movies", "Series"), type) { type = it }
             if (languages.isNotEmpty()) ChipGroup("Language (from file names)", listOf("Any") + languages, language) { language = it }
             Row(Modifier.fillMaxWidth().padding(vertical = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedButton(onClick = { year = "Any"; rating = "Any"; status = "Any"; type = "Any"; language = "Any"; genre = "All" }, Modifier.weight(1f)) { Text("Clear all") }
-                Button(onClick = { filterOpen = false }, Modifier.weight(1f)) { Text("Show ${shown.size}") }
+                NWOutlinedButton(onClick = { year = "Any"; rating = "Any"; status = "Any"; type = "Any"; language = "Any"; genre = "All" }, Modifier.weight(1f)) { Text("Clear all") }
+                NWButton(onClick = { filterOpen = false }, Modifier.weight(1f)) { Text("Show ${shown.size}") }
             }
             Spacer(Modifier.navigationBarsPadding())
         }
