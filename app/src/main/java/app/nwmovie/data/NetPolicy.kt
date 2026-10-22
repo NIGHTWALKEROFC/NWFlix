@@ -35,4 +35,12 @@ object NetPolicy {
         metered.value && p.wifiOnlyStream -> "Wi-Fi only streaming is on. Connect to Wi-Fi or turn it off in Settings → Network & Download."
         else -> null
     }
+
+    /** Returns a human readable reason if downloading must wait, else null. */
+    fun downloadBlock(p: Prefs): String? = when {
+        !online.value -> "You're offline. Check your connection."
+        cellular.value && !p.mobileData -> "Mobile data is turned off for NWFlix (Settings → Network & Download)."
+        metered.value && p.wifiOnlyDownload -> "Wi-Fi only downloads is on. Connect to Wi-Fi or turn it off in Settings → Network & Download."
+        else -> null
+    }
 }
