@@ -37,17 +37,19 @@ private val LEGAL: Map<String, LegalDoc> = mapOf(
             "TMDB (The Movie Database): to show posters and details, the app sends the cleaned-up movie title and year taken from a file name to TMDB. No account details are sent. TMDB's privacy policy applies.",
             "GitHub: update checks and downloads are served from GitHub. GitHub can see your IP address when you check for or download an update.",
         ),
-        "Anonymous usage statistics (can be switched off)" to listOf(
-            "So the developer can count how many people use the app and send important messages, NWFlix can send a small anonymous record to Google Firebase: a random install ID, app version, Android version, phone model, the country and language set on your phone, the time you last opened the app and how many times you opened it.",
-            "It never includes your name, Telegram number or username, chat names, file names, movie titles or what you watch.",
-            "You can switch this off at any time in Settings → Privacy & Notifications → Share anonymous usage statistics. When it is off, nothing is sent, and the app only reads the maintenance and announcement notice.",
+        "Google sign-in and usage statistics" to listOf(
+            "To use NWFlix you sign in with your Google account (one tap, no password). This is used to count real users and to be able to contact users with important notices.",
+            "When you sign in, Google and Google Firebase give the developer your Google account email address and a random account ID. Nothing else from your Google account is read.",
+            "While you are signed in and statistics are on, the app sends a small record to Google Firebase: the random account ID, app version, Android version, phone model, the country and language set on your phone, the time you last opened the app and how many times you opened it.",
+            "It never includes your Telegram number or username, chat names, file names, movie titles or what you watch.",
+            "You can switch the statistics off at any time in Settings → Privacy & Security → Share anonymous usage statistics, and sign out of Google in Settings → Account & Security. Signing out stops the records.",
         ),
         "Messages from the developer" to listOf(
             "The app checks a small public notice from time to time. It can show a message (for example about an update) or tell you the app is under maintenance. This notice is the same for everyone and does not use your personal information.",
         ),
         "Your choices and deleting data" to listOf(
             "You can clear the movie index, saved movie details, posters, temporary files and downloads in Settings → Storage & Cache, or log out and delete everything NWFlix stored in Settings → Account & Security. Uninstalling the app removes all data stored on your phone.",
-            "To ask for the anonymous statistics record linked to your install to be deleted, contact the developer and include the install ID if you can. Where the law of your country gives you rights over your information (for example access, correction or deletion), you can use them by contacting the developer.",
+            "To ask for your Google account record and statistics to be deleted, contact the developer from the app. Where the law of your country gives you rights over your information (for example access, correction or deletion), you can use them by contacting the developer.",
         ),
         "Children" to listOf(
             "NWFlix is not meant for children under 13 (or under the age required by Telegram in your country). Do not use the app if you are below that age.",
@@ -76,10 +78,10 @@ private val LEGAL: Map<String, LegalDoc> = mapOf(
             "Use the app for anything illegal.",
         ),
         "Other services" to listOf(
-            "NWFlix works with Telegram, TMDB and Google Firebase. They have their own terms, which you must also follow. NWFlix is not affiliated with or endorsed by Telegram or TMDB.",
+            "NWFlix works with Telegram, TMDB, Google (sign-in) and Google Firebase. They have their own terms, which you must also follow. NWFlix is not affiliated with or endorsed by Telegram or TMDB.",
         ),
         "Updates, maintenance and messages" to listOf(
-            "The app can update itself and can show notices from the developer. Some updates may be required to keep using the app, and the app may be paused for maintenance.",
+            "You must sign in with Google to use the app. The app can update itself and can show notices from the developer. Some updates may be required to keep using the app, and the app may be paused for maintenance.",
         ),
         "No warranty" to listOf(
             "NWFlix is provided \"as is\" and \"as available\", without any promise that it will work without errors, interruptions or on every phone.",
