@@ -34,7 +34,7 @@ class DownloadsManager(private val ctx: Context, private val scope: CoroutineSco
 
     private val byFile = ConcurrentHashMap<Int, String>()
     private val lastWrite = ConcurrentHashMap<String, Long>()
-    private val autoPaused = mutableSetOf<String>()
+    private val autoPaused: MutableSet<String> = java.util.Collections.newSetFromMap(ConcurrentHashMap<String, Boolean>())
 
     /** (activeCount, overallPercent) for the foreground notification. */
     val summary: Flow<Pair<Int, Int>> by lazy {
@@ -47,7 +47,7 @@ class DownloadsManager(private val ctx: Context, private val scope: CoroutineSco
     }
 
     fun init() {
-        scope.launch { tg.fileUpdates.collect { onFile(it) } }
+        scope.launch { tg.fileUpdates.collect { f -> try { onFile(f) } catch (e: CancellationException) { throw e } catch (_: Exception) { byFile.remove(f.id)?.let { id -> try { dao.setState(id, DownloadItem.ERROR) } catch (_: Exception) { } } } } }
         scope.launch {
             // After the app restarts, continue downloads that were running.
             tg.auth.filterIsInstance<Tg.Auth.Ready>().first()
