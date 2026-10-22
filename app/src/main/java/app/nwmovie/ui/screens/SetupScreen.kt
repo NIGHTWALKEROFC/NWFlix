@@ -1,5 +1,6 @@
 package app.nwmovie.ui.screens
 
+import app.nwmovie.ui.theme.NWButton
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -79,7 +80,7 @@ fun SetupScreen(vm: MainViewModel, onDone: () -> Unit) {
         Text(tr(lang, "You can change this any time in Settings → Storage & Cache.", "ഇത് എപ്പോൾ വേണമെങ്കിലും Settings → Storage & Cache-ൽ മാറ്റാം."),
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 10.dp))
         Spacer(Modifier.height(24.dp))
-        Button(onClick = { vm.set(K.cacheDays, days); vm.set(K.onboarded, true); onDone() },
+        NWButton(onClick = { vm.set(K.cacheDays, days); vm.set(K.onboarded, true); onDone() },
             Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(14.dp)) { Text(tr(lang, "Continue", "തുടരുക")) }
     }
 }
