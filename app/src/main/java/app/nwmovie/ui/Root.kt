@@ -1,5 +1,6 @@
 package app.nwmovie.ui
 
+import app.nwmovie.ui.theme.NWButton
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Image
@@ -24,6 +25,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.*
 import app.nwmovie.MainViewModel
 import app.nwmovie.R
+import app.nwmovie.data.Telemetry
 import app.nwmovie.data.telegram.Tg
 import app.nwmovie.ui.screens.*
 import kotlinx.coroutines.delay
@@ -131,6 +133,10 @@ fun NWRoot(vm: MainViewModel) {
             composable("page/{name}") { b -> SettingsPages(vm, b.arguments?.getString("name") ?: "", onBack = { nav.popBackStack() }, onPage = { nav.navigate("page/$it") }) }
         }
     }
+    val signedIn by Telemetry.signedInEmail.collectAsState()
+    if (Telemetry.googleReady && auth is Tg.Auth.Ready && prefs.onboarded && signedIn.isBlank()) {
+        GoogleGate(vm)
+    }
     UpdateHost()
     RemoteHost(vm)
 }
@@ -147,7 +153,7 @@ fun BrandMark(size: Int = 84) {
 fun SplashScreen(onReady: suspend () -> Unit) {
     LaunchedEffect(Unit) { delay(900); onReady() }
     Box(
-        Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF07060F), Color(0xFF1B1245), Color(0xFF07060F)))),
+        Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF010314), Color(0xFF1F1D3A), Color(0xFF010314)))),
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -155,9 +161,9 @@ fun SplashScreen(onReady: suspend () -> Unit) {
             Spacer(Modifier.height(18.dp))
             Text("NWFLIX", fontSize = 30.sp, fontWeight = FontWeight.Light, letterSpacing = 8.sp, color = Color.White)
             Spacer(Modifier.height(6.dp))
-            Text("STREAM  ·  ENJOY  ·  ANYTIME", fontSize = 11.sp, letterSpacing = 3.sp, color = Color(0xFF9AA0C4))
+            Text("STREAM  ·  ENJOY  ·  ANYTIME", fontSize = 11.sp, letterSpacing = 3.sp, color = Color(0xFF9FA2B9))
             Spacer(Modifier.height(36.dp))
-            LinearProgressIndicator(Modifier.width(140.dp), color = MaterialTheme.colorScheme.primary, trackColor = Color(0xFF1D1A38))
+            LinearProgressIndicator(Modifier.width(140.dp), color = MaterialTheme.colorScheme.primary, trackColor = Color(0xFF2A2B3A))
         }
     }
 }
@@ -171,7 +177,7 @@ fun LockScreen(onUnlock: () -> Unit) {
             Spacer(Modifier.height(16.dp))
             Text("NWFlix is locked", style = MaterialTheme.typography.titleLarge)
             Spacer(Modifier.height(16.dp))
-            Button(onClick = onUnlock) { Icon(Icons.Default.Lock, null); Spacer(Modifier.width(8.dp)); Text("Unlock") }
+            NWButton(onClick = onUnlock) { Icon(Icons.Default.Lock, null); Spacer(Modifier.width(8.dp)); Text("Unlock") }
         }
     }
 }
