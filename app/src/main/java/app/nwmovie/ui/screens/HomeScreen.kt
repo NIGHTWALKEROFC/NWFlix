@@ -1,5 +1,6 @@
 package app.nwmovie.ui.screens
 
+import app.nwmovie.ui.theme.NWButton
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -159,14 +160,14 @@ private fun Hero(list: List<MovieGroup>, vm: MainViewModel, onOpen: (String) -> 
         val m = g.view
         Box(Modifier.fillMaxSize().clip(RoundedCornerShape(16.dp)).clickable { onOpen(g.id) }) {
             AsyncImage(TmdbClient.img(m.backdrop, imgSize("w780", "w500")), m.displayTitle, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-            GradientScrim(Modifier.fillMaxSize(), Color(0xFF070B1A))
+            GradientScrim(Modifier.fillMaxSize(), Color(0xFF010314))
             Column(Modifier.align(Alignment.BottomStart).padding(16.dp)) {
                 Text(m.displayTitle, style = MaterialTheme.typography.headlineMedium, color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Text(listOf(m.year.toString(), m.genreList.take(2).joinToString(" • "), fmtRuntime(m.runtime)).filter { it.isNotBlank() && it != "0" }.joinToString("  •  "),
-                    style = MaterialTheme.typography.bodySmall, color = Color(0xFFCBD0F0))
+                    style = MaterialTheme.typography.bodySmall, color = Color(0xFFBABCD2))
                 Spacer(Modifier.height(10.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Button(onClick = { onOpen(g.id) }, shape = RoundedCornerShape(10.dp)) {
+                    NWButton(onClick = { onOpen(g.id) }, shape = RoundedCornerShape(10.dp)) {
                         Icon(Icons.Default.PlayArrow, null); Spacer(Modifier.width(4.dp)); Text("Watch Now")
                     }
                     Spacer(Modifier.width(8.dp))
@@ -184,12 +185,12 @@ private fun MovieOfTheDay(g: MovieGroup, onOpen: (String) -> Unit) {
     val m = g.view
     Box(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp).height(150.dp).clip(RoundedCornerShape(16.dp)).clickable { onOpen(g.id) }) {
         AsyncImage(TmdbClient.img(m.backdrop, imgSize("w780", "w500")), m.displayTitle, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-        GradientScrim(Modifier.fillMaxSize(), Color(0xFF070B1A))
+        GradientScrim(Modifier.fillMaxSize(), Color(0xFF010314))
         Column(Modifier.align(Alignment.BottomStart).padding(14.dp)) {
             Text("MOVIE OF THE DAY", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, letterSpacing = 2.sp)
             Text(m.displayTitle, style = MaterialTheme.typography.titleLarge, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(listOf(if (m.displayYear > 0) m.displayYear.toString() else "", m.genreList.take(2).joinToString(" • "), if (m.rating > 0) "★ %.1f".format(m.rating) else "")
-                .filter { it.isNotBlank() }.joinToString("  •  "), style = MaterialTheme.typography.bodySmall, color = Color(0xFFCBD0F0))
+                .filter { it.isNotBlank() }.joinToString("  •  "), style = MaterialTheme.typography.bodySmall, color = Color(0xFFBABCD2))
         }
     }
 }
