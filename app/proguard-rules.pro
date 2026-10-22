@@ -12,3 +12,13 @@
 # Harder to read / re-package
 -repackageclasses 'a'
 -allowaccessmodification
+
+# Encrypted storage (Tink) and annotation-only classes that R8 reports as missing
+-dontwarn com.google.errorprone.annotations.**
+-dontwarn javax.annotation.**
+-dontwarn org.checkerframework.**
+-keepclassmembers class * extends com.google.crypto.tink.shaded.protobuf.GeneratedMessageLite { <fields>; }
+
+# Media3 session service and Google sign-in
+-dontwarn androidx.media3.**
+-keep class com.google.android.libraries.identity.googleid.** { *; }
