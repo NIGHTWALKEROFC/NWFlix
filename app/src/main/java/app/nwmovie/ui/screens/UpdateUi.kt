@@ -1,5 +1,6 @@
 package app.nwmovie.ui.screens
 
+import app.nwmovie.ui.theme.NWButton
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -64,14 +65,14 @@ fun UpdateHost() {
                     )
                 }
             },
-            confirmButton = { Button(onClick = { scope.launch { Updater.downloadAndInstall(ctx, s.info) } }) { Text("Download & install") } },
+            confirmButton = { NWButton(onClick = { scope.launch { Updater.downloadAndInstall(ctx, s.info) } }) { Text("Download & install") } },
             dismissButton = { if (!s.info.mandatory) TextButton(onClick = { scope.launch { Updater.later() } }) { Text("Not now") } }
         )
         is Updater.State.NeedPermission -> AlertDialog(
             onDismissRequest = { },
             title = { Text("Allow installing updates") },
             text = { Text("Android needs your permission once so NWFlix can install its updates. Tap Allow, switch on “Allow from this source”, then come back. The update continues by itself.") },
-            confirmButton = { Button(onClick = { Updater.openInstallPermissionScreen(ctx) }) { Text("Allow") } },
+            confirmButton = { NWButton(onClick = { Updater.openInstallPermissionScreen(ctx) }) { Text("Allow") } },
             dismissButton = { if (!s.info.mandatory) TextButton(onClick = { scope.launch { Updater.later() } }) { Text("Cancel") } }
         )
         is Updater.State.Downloading -> AlertDialog(
@@ -97,8 +98,8 @@ fun UpdateHost() {
             text = { Text(s.message) },
             confirmButton = {
                 when {
-                    s.info != null -> Button(onClick = { scope.launch { Updater.downloadAndInstall(ctx, s.info) } }) { Text("Try again") }
-                    s.blocking -> Button(onClick = { scope.launch { Updater.check(ctx, true) } }) { Text("Try again") }
+                    s.info != null -> NWButton(onClick = { scope.launch { Updater.downloadAndInstall(ctx, s.info) } }) { Text("Try again") }
+                    s.blocking -> NWButton(onClick = { scope.launch { Updater.check(ctx, true) } }) { Text("Try again") }
                     else -> TextButton(onClick = { Updater.state.value = Updater.State.Idle }) { Text("OK") }
                 }
             },
