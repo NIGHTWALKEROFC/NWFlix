@@ -1,5 +1,6 @@
 package app.nwmovie.ui.components
 
+import app.nwmovie.ui.theme.NWButton
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -98,7 +99,7 @@ fun EmptyState(icon: ImageVector, title: String, subtitle: String, modifier: Mod
         Spacer(Modifier.height(4.dp))
         Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-        if (action != null) { Spacer(Modifier.height(16.dp)); Button(onClick = onAction) { Text(action) } }
+        if (action != null) { Spacer(Modifier.height(16.dp)); NWButton(onClick = onAction) { Text(action) } }
     }
 }
 
