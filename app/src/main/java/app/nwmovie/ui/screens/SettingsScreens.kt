@@ -1,5 +1,7 @@
 package app.nwmovie.ui.screens
 
+import app.nwmovie.ui.theme.NWButton
+import app.nwmovie.ui.theme.NWOutlinedButton
 import androidx.biometric.BiometricManager
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -26,6 +28,7 @@ import app.nwmovie.BuildConfig
 import app.nwmovie.MainViewModel
 import app.nwmovie.data.CacheManager
 import app.nwmovie.data.K
+import app.nwmovie.data.Telemetry
 import app.nwmovie.data.MovieGroup
 import app.nwmovie.data.Updater
 import app.nwmovie.data.db.DownloadItem
@@ -177,10 +180,16 @@ fun SettingsPages(vm: MainViewModel, name: String, onBack: () -> Unit, onPage: (
             ActionRow(user.ifBlank { "Telegram user" }, "Connected. Your session is encrypted on this phone.", Icons.Default.Person) {}
             ActionRow("Scan for new movies", "Also runs automatically every time you open the app", Icons.Default.Refresh) { vm.rescan(false); vm.say("Scanning…") }
             ActionRow("Full rescan", "Slower: checks every chat deeply and retries unmatched movies", Icons.Default.Search) { vm.rescan(true); vm.say("Full scan started") }
+            if (Telemetry.googleReady) {
+                val gEmail by Telemetry.signedInEmail.collectAsState()
+                Group("Google account")
+                ActionRow(gEmail.ifBlank { "Not signed in" }, "Signed in with Google", Icons.Default.AccountCircle) {}
+                ActionRow("Use a different Google account", "You will be asked to pick an account", Icons.Default.Logout) { Telemetry.signOut() }
+            }
             Group("Danger zone")
             ActionRow("Log out & clear session", "Signs out of Telegram and deletes everything stored by NWFlix", Icons.Default.Logout, danger = true) { logout = true }
             if (logout) Confirm("Log out?", "This logs you out of Telegram on this phone and deletes the local index, caches and downloaded movies.", "Log out",
-                { vm.logout() }, { logout = false })
+                { Telemetry.signOut(); vm.logout() }, { logout = false })
         }
 
         "privacy" -> Page("Privacy & Security", onBack) {
@@ -220,7 +229,7 @@ fun SettingsPages(vm: MainViewModel, name: String, onBack: () -> Unit, onPage: (
 
         "appearance" -> Page("Appearance", onBack) {
             Group("Theme")
-            ChoiceRow("Theme", p.theme, listOf("dark" to "Midnight (navy)", "amoled" to "AMOLED black", "light" to "Light")) { vm.set(K.theme, it) }
+            ChoiceRow("Theme", p.theme, listOf("dark" to "Void (default)", "amoled" to "AMOLED black")) { vm.set(K.theme, it) }
             Group("Accent colour")
             Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 Accents.forEachIndexed { i, c ->
@@ -297,7 +306,6 @@ fun SettingsPages(vm: MainViewModel, name: String, onBack: () -> Unit, onPage: (
             var usage by remember { mutableStateOf(CacheManager.usage(ctx)) }
             fun refresh() { usage = CacheManager.usage(ctx) }
             LaunchedEffect(Unit) { refresh() }
-            var confirmClear by remember { mutableStateOf<String?>(null) }
             var confirmDetails by remember { mutableStateOf(false) }
             Group("Saved movie details (kept until you delete them)")
             CacheRow("Posters & images", usage.posters, "Kept so they never need to be downloaded again", "Delete") { CacheManager.clearPosters(); refresh() }
@@ -352,7 +360,7 @@ private fun CacheRow(title: String, bytes: Long, note: String? = null, button: S
             Text(title, style = MaterialTheme.typography.bodyLarge)
             Text(fmtSize(bytes) + if (note != null) "  •  $note" else "", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        OutlinedButton(onClick = onClear, border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)) { Text(button) }
+        NWOutlinedButton(onClick = onClear, border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)) { Text(button) }
     }
 }
 
@@ -433,8 +441,8 @@ private fun ColumnScope.SpaceContent(vm: MainViewModel) {
             Text("${done.count { it.id in watched }} already watched (${fmtSize(watchedSize)} can be freed)", style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp, bottom = 10.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = { sel = done.filter { it.id in watched }.map { it.id }.toSet() }, contentPadding = PaddingValues(horizontal = 12.dp)) { Text("Select watched") }
-                OutlinedButton(onClick = { sel = done.map { it.id }.toSet() }, contentPadding = PaddingValues(horizontal = 12.dp)) { Text("Select all") }
+                NWOutlinedButton(onClick = { sel = done.filter { it.id in watched }.map { it.id }.toSet() }, contentPadding = PaddingValues(horizontal = 12.dp)) { Text("Select watched") }
+                NWOutlinedButton(onClick = { sel = done.map { it.id }.toSet() }, contentPadding = PaddingValues(horizontal = 12.dp)) { Text("Select all") }
                 TextButton(onClick = { sel = emptySet() }) { Text("Clear") }
             }
             Spacer(Modifier.height(8.dp))
@@ -451,7 +459,7 @@ private fun ColumnScope.SpaceContent(vm: MainViewModel) {
                 }
             }
             Spacer(Modifier.height(12.dp))
-            Button(onClick = { confirm = true }, enabled = sel.isNotEmpty(), modifier = Modifier.fillMaxWidth().height(50.dp), shape = RoundedCornerShape(14.dp)) {
+            NWButton(onClick = { confirm = true }, enabled = sel.isNotEmpty(), modifier = Modifier.fillMaxWidth().height(50.dp), shape = RoundedCornerShape(14.dp)) {
                 Icon(Icons.Default.Delete, null); Spacer(Modifier.width(8.dp)); Text("Delete ${sel.size} selected  •  ${fmtSize(selSize)}")
             }
         }
@@ -480,7 +488,7 @@ private fun ColumnScope.UpdatesContent(vm: MainViewModel) {
             }, style = MaterialTheme.typography.bodyLarge
         )
         Spacer(Modifier.height(12.dp))
-        Button(onClick = { vm.checkUpdates(true) }, enabled = Updater.configured, shape = RoundedCornerShape(14.dp)) { Text("Check for updates") }
+        NWButton(onClick = { vm.checkUpdates(true) }, enabled = Updater.configured, shape = RoundedCornerShape(14.dp)) { Text("Check for updates") }
         Text("If you skip an update, NWFlix asks again the next day.",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 12.dp))
     }
@@ -516,9 +524,9 @@ private fun ContactDialog(onClose: () -> Unit) {
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Choose where to send your message or bug report.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Button(onClick = { openLink(ctx, "https://instagram.com/nightwalker.ofc"); onClose() }, Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) { Text("Instagram") }
-                Button(onClick = { openLink(ctx, "https://t.me/nightwalker_ofc"); onClose() }, Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) { Text("Telegram") }
-                Button(onClick = { sendMail(ctx); onClose() }, Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) { Text("Email") }
+                NWButton(onClick = { openLink(ctx, "https://instagram.com/nightwalker.ofc"); onClose() }, Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) { Text("Instagram") }
+                NWButton(onClick = { openLink(ctx, "https://t.me/nightwalker_ofc"); onClose() }, Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) { Text("Telegram") }
+                NWButton(onClick = { sendMail(ctx); onClose() }, Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) { Text("Email") }
             }
         },
         confirmButton = { TextButton(onClick = onClose) { Text("Cancel") } }
