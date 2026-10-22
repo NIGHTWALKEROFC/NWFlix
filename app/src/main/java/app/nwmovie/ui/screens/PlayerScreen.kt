@@ -1,5 +1,7 @@
 package app.nwmovie.ui.screens
 
+import app.nwmovie.ui.theme.NWButton
+import app.nwmovie.ui.theme.NWOutlinedButton
 import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import android.media.AudioManager
@@ -398,7 +400,6 @@ fun PlayerScreen(vm: MainViewModel, id: String, onBack: () -> Unit, onNext: (Str
 
     val audioOpts = remember(tracks) { trackOpts(tracks, C.TRACK_TYPE_AUDIO) }
     val textOpts = remember(tracks) { trackOpts(tracks, C.TRACK_TYPE_TEXT) }
-    val videoOpts = remember(tracks) { trackOpts(tracks, C.TRACK_TYPE_VIDEO) }
     val noSupportedAudio = audioOpts.isNotEmpty() && audioOpts.none { it.selected }
 
     val cueText = remember(pos, ext, subDelay, extOn) {
@@ -512,17 +513,17 @@ fun PlayerScreen(vm: MainViewModel, id: String, onBack: () -> Unit, onNext: (Str
 
         // ---------- error ----------
         error?.let { msg ->
-            Card(Modifier.align(Alignment.Center).padding(24.dp).widthIn(max = 420.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF1A2140))) {
+            Card(Modifier.align(Alignment.Center).padding(24.dp).widthIn(max = 420.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF171825))) {
                 Column(Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(Icons.Default.ErrorOutline, null, tint = Color(0xFFFF6B8A), modifier = Modifier.size(40.dp))
                     Spacer(Modifier.height(10.dp))
                     Text("Can't play this movie", style = MaterialTheme.typography.titleMedium, color = Color.White)
                     Spacer(Modifier.height(6.dp))
-                    Text(msg, color = Color(0xFFCBD0F0), textAlign = TextAlign.Center, style = MaterialTheme.typography.bodyMedium)
+                    Text(msg, color = Color(0xFFBABCD2), textAlign = TextAlign.Center, style = MaterialTheme.typography.bodyMedium)
                     Spacer(Modifier.height(14.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        OutlinedButton(onClick = onBack) { Text("Back") }
-                        Button(onClick = { attempt++ }) { Text("Try again") }
+                        NWOutlinedButton(onClick = onBack) { Text("Back") }
+                        NWButton(onClick = { attempt++ }) { Text("Try again") }
                     }
                     TextButton(onClick = { AppState.switchTo = cid(); AppState.switchMs = pos; onVlc(cid()) }) { Text("Play with the VLC engine") }
                 }
@@ -595,10 +596,10 @@ fun PlayerScreen(vm: MainViewModel, id: String, onBack: () -> Unit, onNext: (Str
                 Column(Modifier.padding(16.dp)) {
                     Text("Up next", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                     Text(playerTitle(nm, 1, 0), color = Color.White, style = MaterialTheme.typography.titleMedium, maxLines = 2)
-                    Text("Starting in ${upSec}s", color = Color(0xFFCBD0F0), style = MaterialTheme.typography.bodySmall)
+                    Text("Starting in ${upSec}s", color = Color(0xFFBABCD2), style = MaterialTheme.typography.bodySmall)
                     Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        OutlinedButton(onClick = { upNext = null }) { Text("Cancel") }
-                        Button(onClick = { val i = nm.id; upNext = null; onNext(i) }) { Text("Play now") }
+                        NWOutlinedButton(onClick = { upNext = null }) { Text("Cancel") }
+                        NWButton(onClick = { val i = nm.id; upNext = null; onNext(i) }) { Text("Play now") }
                     }
                 }
             }
@@ -610,10 +611,10 @@ fun PlayerScreen(vm: MainViewModel, id: String, onBack: () -> Unit, onNext: (Str
                 PlayerOpt("Off", !extOn && textOpts.none { it.selected }) { extOn = false; disableText() }
                 textOpts.forEach { o -> PlayerOpt(o.label, !extOn && o.selected) { extOn = false; selectTrack(o) } }
                 if (ext.isNotEmpty()) PlayerOpt("$extName (loaded file)", extOn) { extOn = true; disableText() }
-                OutlinedButton(onClick = { picker.launch(arrayOf("*/*")) }, Modifier.fillMaxWidth().padding(top = 6.dp)) { Icon(Icons.Default.FolderOpen, null); Spacer(Modifier.width(8.dp)); Text("Load subtitle file (.srt .vtt .ass)") }
+                NWOutlinedButton(onClick = { picker.launch(arrayOf("*/*")) }, Modifier.fillMaxWidth().padding(top = 6.dp)) { Icon(Icons.Default.FolderOpen, null); Spacer(Modifier.width(8.dp)); Text("Load subtitle file (.srt .vtt .ass)") }
                 Text("Subtitle delay: $subDelay ms", Modifier.padding(top = 12.dp), color = MaterialTheme.colorScheme.onSurface)
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    listOf(-500, -100, 100, 500).forEach { d -> OutlinedButton(onClick = { subDelay += d }, contentPadding = PaddingValues(8.dp)) { Text(if (d > 0) "+$d" else "$d") } }
+                    listOf(-500, -100, 100, 500).forEach { d -> NWOutlinedButton(onClick = { subDelay += d }, contentPadding = PaddingValues(8.dp)) { Text(if (d > 0) "+$d" else "$d") } }
                     TextButton(onClick = { subDelay = 0 }) { Text("Reset") }
                 }
                 Text("Delay applies to loaded subtitle files. Positive = subtitles appear later.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -624,7 +625,7 @@ fun PlayerScreen(vm: MainViewModel, id: String, onBack: () -> Unit, onNext: (Str
                 Text("Audio delay: $audioDelay ms", Modifier.padding(top = 12.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     listOf(-100, 100, 500).forEach { d ->
-                        OutlinedButton(onClick = { audioDelay = (audioDelay + d).coerceIn(0, 2000); PlayerManager.audioDelay.delayMs = audioDelay }, contentPadding = PaddingValues(8.dp)) { Text(if (d > 0) "+$d" else "$d") }
+                        NWOutlinedButton(onClick = { audioDelay = (audioDelay + d).coerceIn(0, 2000); PlayerManager.audioDelay.delayMs = audioDelay }, contentPadding = PaddingValues(8.dp)) { Text(if (d > 0) "+$d" else "$d") }
                     }
                     TextButton(onClick = { audioDelay = 0; PlayerManager.audioDelay.delayMs = 0 }) { Text("Reset") }
                 }
