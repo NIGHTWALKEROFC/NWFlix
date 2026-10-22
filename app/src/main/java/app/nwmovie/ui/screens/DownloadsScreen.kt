@@ -25,6 +25,8 @@ import app.nwmovie.ui.components.EmptyState
 import app.nwmovie.ui.components.StorageBar
 import app.nwmovie.util.fmtSize
 import coil.compose.AsyncImage
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @Composable
 fun DownloadsScreen(vm: MainViewModel, onPlay: (String) -> Unit, onFreeSpace: () -> Unit = {}) {
@@ -34,7 +36,7 @@ fun DownloadsScreen(vm: MainViewModel, onPlay: (String) -> Unit, onFreeSpace: ()
     val running = dl.filter { it.first.state != DownloadItem.DONE }
     val done = dl.filter { it.first.state == DownloadItem.DONE }
     val list = if (tab == 0) running else done
-    val used = remember(dl) { CacheManager.dirSize(ServiceLocator.downloads.dir) }
+    val used by produceState(0L, done.size, running.size) { value = withContext(Dispatchers.IO) { CacheManager.dirSize(ServiceLocator.downloads.dir) } }
     val stat = remember { StatFs(ctx.filesDir.path) }
     val total = stat.totalBytes
     var confirm by remember { mutableStateOf<String?>(null) }
