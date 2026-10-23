@@ -75,6 +75,7 @@ fun DetailScreen(vm: MainViewModel, id: String, onBack: () -> Unit, onPlay: (Str
     val playTarget: Movie = if (group.isSeries)
         (group.resumeFile?.takeIf { q == null || qualityOf(it) == q } ?: seriesEps.firstOrNull { !it.watched } ?: seriesEps.firstOrNull() ?: group.playFile)
     else group.pick(prefs.bandwidthSaver, metered, prefs.smartQuality)
+    LaunchedEffect(group.id, group.episodeCount) { app.nwmovie.data.NewStore.markSeen(group) }
     LaunchedEffect(playTarget.id) { vm.preload(playTarget) }       // instant play: first MBs are fetched now
     val allWatched = group.files.all { it.watched }
 
