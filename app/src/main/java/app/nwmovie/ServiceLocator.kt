@@ -100,6 +100,8 @@ object ServiceLocator {
     suspend fun wipeLocalData() {
         downloads.deleteAll()
         ScanStore.clear()
+        NewStore.clear()
+        WeeklyStats.clear()
         withContext(Dispatchers.IO) { db.clearAllTables() }
         CacheManager.clearPosters()
         CacheManager.clearMetadata()
