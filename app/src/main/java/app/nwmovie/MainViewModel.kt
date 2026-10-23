@@ -8,6 +8,8 @@ import app.nwmovie.data.CacheManager
 import app.nwmovie.data.K
 import app.nwmovie.data.MovieGroup
 import app.nwmovie.data.NetPolicy
+import app.nwmovie.data.NewStore
+import app.nwmovie.data.WeeklyStats
 import app.nwmovie.data.Updater
 import app.nwmovie.data.qualityOf
 import app.nwmovie.data.SortOption
@@ -55,6 +57,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private var lastScan = 0L
 
     init {
+        viewModelScope.launch {
+            combine(groups, scan) { g, st -> g to st.running }.collect { (g, running) ->
+                if (!running && g.isNotEmpty() && !NewStore.baselined()) NewStore.baseline(g)
+            }
+        }
         viewModelScope.launch {
             auth.collect { a ->
                 if (a is Tg.Auth.Ready) {
@@ -144,7 +151,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun addWatch(id: String, ms: Long) { viewModelScope.launch { sl.db.movies().addWatched(id, ms) } }
+    fun addWatch(id: String, ms: Long) {
+        movies.value.firstOrNull { it.id == id }?.let { WeeklyStats.add(it.groupKey(), ms) }
+        viewModelScope.launch { sl.db.movies().addWatched(id, ms) }
+    }
 
     /** Instant play: fetch the first few MB while the detail page is open (Wi-Fi only, never with Data saver). */
     fun preload(f: Movie) {
