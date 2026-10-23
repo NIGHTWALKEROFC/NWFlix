@@ -19,6 +19,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import app.nwmovie.ServiceLocator
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -35,7 +36,7 @@ fun imgSize(normal: String, saver: String): String {
 }
 
 @Composable
-fun Poster(movie: Movie, modifier: Modifier = Modifier, showTitle: Boolean = true, badge: String? = null, onClick: () -> Unit) {
+fun Poster(movie: Movie, modifier: Modifier = Modifier, showTitle: Boolean = true, badge: String? = null, fresh: String? = null, onClick: () -> Unit) {
     Column(modifier.clickable(onClick = onClick)) {
         Box(
             Modifier.fillMaxWidth().aspectRatio(2f / 3f).clip(RoundedCornerShape(10.dp))
@@ -55,6 +56,9 @@ fun Poster(movie: Movie, modifier: Modifier = Modifier, showTitle: Boolean = tru
             if (badge != null) Text(badge, style = MaterialTheme.typography.bodySmall, color = Color.White,
                 modifier = Modifier.align(Alignment.TopStart).padding(6.dp).clip(RoundedCornerShape(6.dp))
                     .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.9f)).padding(horizontal = 6.dp, vertical = 2.dp))
+            if (fresh != null) Text(fresh, style = MaterialTheme.typography.labelSmall, color = Color.White,
+                modifier = Modifier.align(Alignment.TopEnd).padding(6.dp).clip(RoundedCornerShape(6.dp))
+                    .background(Color(0xFFE50914)).padding(horizontal = 6.dp, vertical = 2.dp))
             if (movie.positionMs > 0 && movie.durationMs > 0 && !movie.watched) {
                 LinearProgressIndicator(
                     progress = { (movie.positionMs.toFloat() / movie.durationMs).coerceIn(0f, 1f) },
@@ -69,6 +73,23 @@ fun Poster(movie: Movie, modifier: Modifier = Modifier, showTitle: Boolean = tru
             if (movie.displayYear > 0) Text(movie.displayYear.toString(), style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
+    }
+}
+
+/** Netflix-style "Top 10" card: a big number partly hidden behind the poster. */
+@Composable
+fun RankedPoster(rank: Int, movie: Movie, fresh: String? = null, onClick: () -> Unit) {
+    Row(Modifier.height(168.dp), verticalAlignment = Alignment.Bottom) {
+        Text(
+            rank.toString(),
+            style = androidx.compose.ui.text.TextStyle(
+                fontSize = 96.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Black, letterSpacing = (-8).sp,
+                color = Color.White.copy(alpha = 0.92f),
+                drawStyle = androidx.compose.ui.graphics.drawscope.Stroke(width = 5f)
+            ),
+            modifier = Modifier.offset(x = 16.dp).padding(bottom = 4.dp), maxLines = 1, softWrap = false
+        )
+        Poster(movie, Modifier.width(112.dp), false, null, fresh, onClick)
     }
 }
 
