@@ -23,6 +23,12 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import app.nwmovie.MainViewModel
 import app.nwmovie.data.MovieGroup
+import app.nwmovie.data.NewStore
+import app.nwmovie.data.tmdb.TmdbClient
+import androidx.compose.foundation.shape.RoundedCornerShape as Rounded
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
 import app.nwmovie.data.SortOption
 import app.nwmovie.data.sortedByOption
 import app.nwmovie.ui.components.EmptyState
@@ -58,7 +64,17 @@ fun ExploreScreen(vm: MainViewModel, onOpen: (String) -> Unit, onPerson: (String
         listOf("All") + (if (unmatchedCount > 0) listOf("Unmatched") else emptyList()) + groups.flatMap { it.view.genreList }.groupingBy { it }.eachCount().entries.sortedByDescending { it.value }.map { it.key }
     }
     val languages = remember(groups) { groups.flatMap { it.languages }.groupingBy { it }.eachCount().entries.sortedByDescending { it.value }.map { it.key } }
-    val people = remember(groups) { groups.flatMap { g -> g.people.map { it.first } }.distinct() }
+    val people = remember(groups) {
+        val counts = HashMap<String, Int>()
+        val roles = HashMap<String, String>()
+        groups.forEach { g ->
+            g.people.map { it.first }.distinct().forEach { n -> counts[n] = (counts[n] ?: 0) + 1 }
+            g.people.forEach { (n, c) -> if (c == "Director" || c == "Creator") roles[n] = c else if (n !in roles) roles[n] = "Actor" }
+        }
+        counts.map { (n, c) -> PersonHit(n, roles[n] ?: "Actor", c, fold(n)) }
+    }
+    val titleIndex = remember(groups) { groups.map { it to fold(it.view.displayTitle) } }
+    val freshRev by NewStore.changed.collectAsState()
     val activeFilters = listOf(year, rating, status, type, language).count { it != "Any" }
 
     // The filtering/sorting runs on a background thread so the screen never freezes, even with thousands of files.
@@ -109,7 +125,8 @@ fun ExploreScreen(vm: MainViewModel, onOpen: (String) -> Unit, onPerson: (String
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                         keyboardActions = KeyboardActions(onSearch = { vm.addSearch(query); focus.clearFocus() }))
                     if (focused) Suggestions(
-                        query = query, history = prefs.searchHistory.split("\n").filter { it.isNotBlank() }, groups = groups, people = people, genres = genres,
+                        query = query, history = prefs.searchHistory.split("\n").filter { it.isNotBlank() }, titles = titleIndex, people = people, genres = genres,
+                        onSearchAll = { vm.addSearch(query); focus.clearFocus() },
                         onPickText = { query = it; vm.addSearch(it); focus.clearFocus() },
                         onOpenTitle = { g -> vm.addSearch(g.view.displayTitle); focus.clearFocus(); onOpen(g.id) },
                         onPerson = { n -> vm.addSearch(n); focus.clearFocus(); onPerson(n) },
@@ -153,7 +170,7 @@ fun ExploreScreen(vm: MainViewModel, onOpen: (String) -> Unit, onPerson: (String
             EmptyState(Icons.Default.Search, "Nothing matches", "Try another genre, search word or clear the filters.")
         }
         items(shown, key = { it.id }) { g ->
-            Poster(g.view, Modifier, prefs.showTitles, g.badge) { if (query.length >= 2) vm.addSearch(query); onOpen(g.id) }
+            Poster(g.view, Modifier, prefs.showTitles, g.badge, NewStore.newLabel(g, freshRev)) { if (query.length >= 2) vm.addSearch(query); onOpen(g.id) }
         }
     }
 
@@ -188,11 +205,28 @@ fun ExploreScreen(vm: MainViewModel, onOpen: (String) -> Unit, onPerson: (String
     }
 }
 
-/** Recent searches while the box is empty; matching titles, people and genres while typing. */
+private class PersonHit(val name: String, val role: String, val count: Int, val folded: String)
+
+/** Lower case, without accents or punctuation, so "Amélie" and "amelie" or "Spider-Man" and "spider man" match. */
+private fun fold(s: String): String =
+    java.text.Normalizer.normalize(s, java.text.Normalizer.Form.NFD).replace(Regex("[\\u0300-\\u036f]+"), "")
+        .lowercase().replace(Regex("[^\\p{L}\\p{Nd}]+"), " ").trim()
+
+/** 0 = starts with the search, 1 = every typed word starts a word of the name, 2 = contained somewhere, 3 = no match. */
+private fun matchRank(name: String, q: String, tokens: List<String>): Int {
+    if (name.startsWith(q)) return 0
+    val words = name.split(' ')
+    if (tokens.all { t -> words.any { it.startsWith(t) } }) return 1
+    if (name.contains(q)) return 2
+    return 3
+}
+
+/** Recent searches while the box is empty; matching titles, actors and genres as soon as you type. */
 @Composable
 private fun Suggestions(
-    query: String, history: List<String>, groups: List<MovieGroup>, people: List<String>, genres: List<String>,
-    onPickText: (String) -> Unit, onOpenTitle: (MovieGroup) -> Unit, onPerson: (String) -> Unit, onGenre: (String) -> Unit, onClearHistory: () -> Unit
+    query: String, history: List<String>, titles: List<Pair<MovieGroup, String>>, people: List<PersonHit>, genres: List<String>,
+    onSearchAll: () -> Unit, onPickText: (String) -> Unit, onOpenTitle: (MovieGroup) -> Unit, onPerson: (String) -> Unit,
+    onGenre: (String) -> Unit, onClearHistory: () -> Unit
 ) {
     val q = query.trim()
     Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f), modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp)) {
@@ -207,25 +241,46 @@ private fun Suggestions(
                     history.forEach { h -> SuggestRow(Icons.Default.History, h) { onPickText(h) } }
                 }
             } else {
-                val titles = remember(q, groups) { groups.filter { it.view.displayTitle.contains(q, true) }.take(4) }
-                val ppl = remember(q, people) { people.filter { it.contains(q, true) }.take(4) }
-                val gen = remember(q, genres) { genres.filter { it != "All" && it != "Unmatched" && it.contains(q, true) }.take(2) }
-                titles.forEach { g -> SuggestRow(Icons.Default.Movie, g.view.displayTitle + if (g.view.displayYear > 0) "  (${g.view.displayYear})" else "") { onOpenTitle(g) } }
-                ppl.forEach { n -> SuggestRow(Icons.Default.Person, n) { onPerson(n) } }
+                val fq = remember(q) { fold(q) }
+                val tokens = remember(fq) { fq.split(' ').filter { it.isNotEmpty() } }
+                val hits = remember(fq, titles) {
+                    if (fq.isEmpty()) emptyList() else titles.map { (g, n) -> Triple(g, matchRank(n, fq, tokens), n) }.filter { it.second < 3 }
+                        .sortedWith(compareBy<Triple<MovieGroup, Int, String>> { it.second }.thenByDescending { it.first.view.popularity }).take(5).map { it.first }
+                }
+                val ppl = remember(fq, people) {
+                    if (fq.isEmpty()) emptyList() else people.map { it to matchRank(it.folded, fq, tokens) }.filter { it.second < 3 }
+                        .sortedWith(compareBy<Pair<PersonHit, Int>> { it.second }.thenByDescending { it.first.count }).take(4).map { it.first }
+                }
+                val gen = remember(fq, genres) { genres.filter { it != "All" && it != "Unmatched" && fold(it).contains(fq) }.take(2) }
+                hits.forEach { g ->
+                    val m = g.view
+                    val sub = listOf(if (g.isSeries) "Series" else "Movie", if (m.displayYear > 0) m.displayYear.toString() else "", m.genreList.firstOrNull().orEmpty()).filter { it.isNotBlank() }.joinToString(" • ")
+                    SuggestRow(Icons.Default.Movie, m.displayTitle, sub, TmdbClient.img(m.poster, "w92")) { onOpenTitle(g) }
+                }
+                ppl.forEach { p -> SuggestRow(Icons.Default.Person, p.name, "${p.role} • ${p.count} in your library") { onPerson(p.name) } }
                 gen.forEach { n -> SuggestRow(Icons.Default.Category, "Genre: $n") { onGenre(n) } }
-                if (titles.isEmpty() && ppl.isEmpty() && gen.isEmpty()) Text("No suggestions. Press search to look in file names.", Modifier.padding(14.dp),
+                if (hits.isEmpty() && ppl.isEmpty() && gen.isEmpty()) Text("No matching title or actor. Press search to look in file names.", Modifier.padding(14.dp),
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                else SuggestRow(Icons.Default.Search, "See all results for “$q”") { onSearchAll() }
             }
         }
     }
 }
 
 @Composable
-private fun SuggestRow(icon: androidx.compose.ui.graphics.vector.ImageVector, text: String, onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-        Icon(icon, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+private fun SuggestRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector, text: String, subtitle: String? = null, poster: String? = null, onClick: () -> Unit
+) {
+    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = if (poster != null) 6.dp else 10.dp), verticalAlignment = Alignment.CenterVertically) {
+        if (poster != null) {
+            AsyncImage(poster, null, Modifier.width(34.dp).height(50.dp).clip(Rounded(6.dp)), contentScale = ContentScale.Crop)
+        } else Icon(icon, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
         Spacer(Modifier.width(12.dp))
-        Text(text, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+        Column(Modifier.weight(1f)) {
+            Text(text, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            if (subtitle != null) Text(subtitle, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
     }
 }
 
