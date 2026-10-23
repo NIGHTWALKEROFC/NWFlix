@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
@@ -27,6 +28,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.nwmovie.MainViewModel
 import app.nwmovie.data.MovieGroup
+import app.nwmovie.data.NewStore
+import app.nwmovie.data.topTen
 import app.nwmovie.data.SortOption
 import app.nwmovie.data.sortedByOption
 import app.nwmovie.data.tmdb.TmdbClient
@@ -53,6 +56,7 @@ fun HomeScreen(
     val cont = remember(groups) {
         groups.filter { val v = it.view; v.lastPlayedAt > 0 && !v.watched && v.positionMs > 5000 }.sortedByDescending { it.view.lastPlayedAt }
     }
+    val top = remember(groups) { topTen(groups) }
     val because = remember(groups) { becauseYouWatched(groups) }
     val trending = remember(matched) { matched.sortedByOption(SortOption.POPULAR).take(60) }
     val topRated = remember(matched) { matched.filter { it.view.rating > 0 }.sortedByOption(SortOption.RATING_HIGH).take(60) }
@@ -125,6 +129,7 @@ fun HomeScreen(
             if (featured.isNotEmpty()) item { Hero(featured, vm, onOpen) }
             if (motd != null) item { MovieOfTheDay(motd, onOpen) }
             if (cont.isNotEmpty()) item { PosterRow(cont, "Continue Watching", prefs.showTitles, null, onOpen) }
+            if (top.first.size >= 3) item(key = "top10") { TopTenRow(top.first, if (top.second) "Top 10 this week" else "Your Top 10", onOpen) }
             because.forEach { (seed, list) -> item(key = "because_${seed.id}") { PosterRow(list, "Because you watched ${seed.view.displayTitle}", prefs.showTitles, null, onOpen) } }
             if (trending.isNotEmpty()) item { PosterRow(trending, "Trending Now", prefs.showTitles, { onSeeAll(SortOption.POPULAR) }, onOpen) }
             if (topRated.isNotEmpty()) item { PosterRow(topRated, "Top Rated", prefs.showTitles, { onSeeAll(SortOption.RATING_HIGH) }, onOpen) }
@@ -160,12 +165,26 @@ private fun becauseYouWatched(groups: List<MovieGroup>): List<Pair<MovieGroup, L
 }
 
 @Composable
+private fun TopTenRow(list: List<MovieGroup>, title: String, onOpen: (String) -> Unit) {
+    val rev by NewStore.changed.collectAsState()
+    Column {
+        SectionHeader(title)
+        LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            itemsIndexed(list, key = { _, g -> "top_" + g.id }) { i, g ->
+                RankedPoster(i + 1, g.view, NewStore.newLabel(g, rev)) { onOpen(g.id) }
+            }
+        }
+    }
+}
+
+@Composable
 private fun PosterRow(list: List<MovieGroup>, title: String, showTitles: Boolean, onSeeAll: (() -> Unit)?, onOpen: (String) -> Unit) {
+    val rev by NewStore.changed.collectAsState()
     Column {
         SectionHeader(title, action = if (onSeeAll != null) "See all" else null, onAction = { onSeeAll?.invoke() })
         LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             items(list, key = { it.id }) { g ->
-                Poster(g.view, Modifier.width(112.dp), showTitles, g.badge) { onOpen(g.id) }
+                Poster(g.view, Modifier.width(112.dp), showTitles, g.badge, NewStore.newLabel(g, rev)) { onOpen(g.id) }
             }
         }
     }
