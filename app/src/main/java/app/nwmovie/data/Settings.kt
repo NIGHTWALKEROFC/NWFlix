@@ -9,7 +9,6 @@ import kotlinx.coroutines.flow.map
 private val Context.dataStore by preferencesDataStore("nw_settings")
 
 data class Prefs(
-    // playback
     val speed: Float = 1f, val audioLang: String = "", val subLang: String = "", val subSize: Float = 20f,
     val subBg: Boolean = true, val subColor: Int = 0xFFFFFFFF.toInt(), val subDelayMs: Int = 0, val audioDelayMs: Int = 0,
     
@@ -17,14 +16,10 @@ data class Prefs(
     val seekGesture: Boolean = true, val rememberBrightness: Boolean = true, val rememberVolume: Boolean = true, val doubleTapSec: Int = 10,
     val autoNext: Boolean = true, val resume: Boolean = true, val hwAccel: Boolean = true,
     val autoQuality: Boolean = true, val maxQuality: Int = 0, val bgPlayback: Boolean = false,
-    // network
     val wifiOnlyStream: Boolean = false, val wifiOnlyDownload: Boolean = true, val mobileData: Boolean = true,
     val bandwidthSaver: Boolean = false, val bgDownloads: Boolean = false,
-    // privacy
     val appLock: Boolean = false, val hideNotif: Boolean = false, val blockShots: Boolean = false,
-    // cache
     val posterCacheMb: Int = 300, val tempCacheMb: Int = 2048, val autoClean: Boolean = true, val lastOpen: Long = 0L,
-    // appearance
     val theme: String = "dark", val accent: Int = 0, val fontScale: Float = 1f, val showTitles: Boolean = true,
     val fullscreen: Boolean = true,
     val savedBrightness: Float = -1f, val savedVolume: Int = -1,
@@ -32,8 +27,8 @@ data class Prefs(
     val clearAfterWatch: String = "auto", val cacheDays: Int = 3, val onboarded: Boolean = false,
     val uiLang: String = "en", val dirBackfill: Boolean = false,
     val searchHistory: String = "",
-    val engine: String = "auto", val updateSnoozeUntil: Long = 0L, val lastUpdateCheck: Long = 0L,
-    val scanVersion: Int = 0, val previews: Boolean = true, val previewMobile: Boolean = true, val shareStats: Boolean = true, val annSeen: String = "", val hideUnmatched: Boolean = true, val forceUpdateCode: Int = 0
+    val engine: String = "auto", val updateSnoozeUntil: Long = 0L,
+    val scanVersion: Int = 0, val previews: Boolean = true, val previewMobile: Boolean = true, val shareStats: Boolean = true, val annSeen: String = "", val hideUnmatched: Boolean = true
 )
 
 object K {
@@ -63,8 +58,8 @@ object K {
     val cacheDays = intPreferencesKey("cacheDays"); val onboarded = booleanPreferencesKey("onboarded")
     val uiLang = stringPreferencesKey("uiLang"); val dirBackfill = booleanPreferencesKey("dirBackfill")
     val searchHistory = stringPreferencesKey("searchHistory")
-    val scanVersion = intPreferencesKey("scanVersion"); val engine = stringPreferencesKey("engine"); val updateSnoozeUntil = longPreferencesKey("updateSnoozeUntil"); val lastUpdateCheck = longPreferencesKey("lastUpdateCheck")
-    val previews = booleanPreferencesKey("previews"); val previewMobile = booleanPreferencesKey("previewMobile"); val shareStats = booleanPreferencesKey("shareStats"); val annSeen = stringPreferencesKey("annSeen"); val hideUnmatched = booleanPreferencesKey("hideUnmatched"); val forceUpdateCode = intPreferencesKey("forceUpdateCode")
+    val scanVersion = intPreferencesKey("scanVersion"); val engine = stringPreferencesKey("engine"); val updateSnoozeUntil = longPreferencesKey("updateSnoozeUntil")
+    val previews = booleanPreferencesKey("previews"); val previewMobile = booleanPreferencesKey("previewMobile"); val shareStats = booleanPreferencesKey("shareStats"); val annSeen = stringPreferencesKey("annSeen"); val hideUnmatched = booleanPreferencesKey("hideUnmatched")
 }
 
 class SettingsStore(ctx: Context) {
@@ -96,9 +91,8 @@ class SettingsStore(ctx: Context) {
             cacheDays = p[K.cacheDays] ?: d.cacheDays, onboarded = p[K.onboarded] ?: d.onboarded,
             uiLang = p[K.uiLang] ?: d.uiLang, dirBackfill = p[K.dirBackfill] ?: d.dirBackfill,
             searchHistory = p[K.searchHistory] ?: d.searchHistory,
-            engine = p[K.engine] ?: d.engine, updateSnoozeUntil = p[K.updateSnoozeUntil] ?: d.updateSnoozeUntil, lastUpdateCheck = p[K.lastUpdateCheck] ?: d.lastUpdateCheck,
-            scanVersion = p[K.scanVersion] ?: d.scanVersion, previews = p[K.previews] ?: d.previews, previewMobile = p[K.previewMobile] ?: d.previewMobile, shareStats = p[K.shareStats] ?: d.shareStats, annSeen = p[K.annSeen] ?: d.annSeen, hideUnmatched = p[K.hideUnmatched] ?: d.hideUnmatched,
-            forceUpdateCode = p[K.forceUpdateCode] ?: d.forceUpdateCode
+            engine = p[K.engine] ?: d.engine, updateSnoozeUntil = p[K.updateSnoozeUntil] ?: d.updateSnoozeUntil,
+            scanVersion = p[K.scanVersion] ?: d.scanVersion, previews = p[K.previews] ?: d.previews, previewMobile = p[K.previewMobile] ?: d.previewMobile, shareStats = p[K.shareStats] ?: d.shareStats, annSeen = p[K.annSeen] ?: d.annSeen, hideUnmatched = p[K.hideUnmatched] ?: d.hideUnmatched
         )
     }
 
