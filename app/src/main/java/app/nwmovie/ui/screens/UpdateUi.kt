@@ -27,6 +27,15 @@ fun UpdateHost() {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val info = Updater.infoOf(st)
+    var news by remember { mutableStateOf(Updater.pendingNews()) }
+    news?.let { n ->
+        AlertDialog(
+            onDismissRequest = { Updater.newsSeen(); news = null },
+            title = { Text("What's new in ${n.name}") },
+            text = { Text(n.notes, Modifier.verticalScroll(rememberScrollState())) },
+            confirmButton = { NWButton(onClick = { Updater.newsSeen(); news = null }) { Text("Got it") } }
+        )
+    }
 
     if (Updater.isBlocking(st) && info != null) {
         BackHandler(true) { }
