@@ -59,6 +59,21 @@
         <receiver android:name=".data.InstallReceiver" android:exported="false" />
 
         <service
+            android:name=".data.UpdateService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.updates"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/update_paths" />
+        </provider>
+
+        <service
             android:name=".data.DownloadService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
