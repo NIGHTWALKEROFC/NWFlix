@@ -40,14 +40,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val sort = MutableStateFlow(SortOption.POPULAR)
 
     val movies: StateFlow<List<Movie>> = sl.db.movies().all().stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
-    /** Files of the same movie merged into one entry. */
     val groups: StateFlow<List<MovieGroup>> = movies.debounce(150).map { it.toGroups() }.flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
-    /** Groups for Home: files that could not be matched are left out unless you already used them. */
     val homeGroups: StateFlow<List<MovieGroup>> = combine(groups, sl.prefs) { g, p ->
         if (!p.hideUnmatched) g else g.filter { val v = it.view; v.matched || v.lastPlayedAt > 0 || v.watchlist || v.favorite }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
-    /** Set by Home to open Explore on a given filter (for example "Unmatched"). */
     val exploreGenre = MutableStateFlow<String?>(null)
     val downloads: StateFlow<List<Pair<DownloadItem, Long>>> =
         combine(sl.downloads.items, sl.downloads.progress) { list, prog -> list.map { it to (prog[it.id] ?: it.done) } }
@@ -66,11 +63,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             auth.collect { a ->
                 if (a is Tg.Auth.Ready) {
                     userName.value = sl.tg.me()
-                    // One deep scan after an update that changes what is recognised (TV episodes, captions, parts). Normal opens are incremental.
                     val deep = prefs.value.scanVersion < 5
                     rescan(deep)
                     if (deep) sl.settings.set(K.scanVersion, 5)
-                    if (!prefs.value.dirBackfill) {                // one time: add directors to older saved details
+                    if (!prefs.value.dirBackfill) {
                         sl.settings.set(K.dirBackfill, true)
                         try { sl.indexer.backfillDirectors() } catch (_: Exception) { }
                     }
@@ -80,14 +76,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun checkUpdates(manual: Boolean) { viewModelScope.launch { Updater.check(getApplication(), manual) } }
-    fun continueUpdate() { viewModelScope.launch { Updater.continueIfPermitted(getApplication()) } }
+    fun continueUpdate() { Updater.continueIfPermitted(getApplication()) }
 
     fun say(msg: String) { toast.tryEmit(msg) }
 
-    // ----- settings -----
     fun <T> set(key: Preferences.Key<T>, value: T) { viewModelScope.launch { sl.settings.set(key, value) } }
 
-    // ----- login -----
     private fun login(block: suspend () -> Unit) { viewModelScope.launch { busy.value = true; try { block() } finally { busy.value = false } } }
     fun clearAuthError() { sl.tg.error.value = null }
     fun submitPhone(p: String) = login { sl.tg.submitPhone(p) }
@@ -97,18 +91,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun logout() { viewModelScope.launch { sl.tg.logoutAndWipe(); sl.wipeLocalData() } }
     fun clearLocalData() { viewModelScope.launch { sl.wipeLocalData(); say("Local data cleared"); rescan(true) } }
 
-    // ----- scanning (runs when the app opens, never in the background) -----
     fun rescan(full: Boolean) {
         lastScan = System.currentTimeMillis()
         scanJob = viewModelScope.launch { sl.indexer.scan(full) }
     }
-    /** Called every time the app comes to the screen. */
     fun scanIfStale() {
         if (auth.value is Tg.Auth.Ready && System.currentTimeMillis() - lastScan > 30_000) rescan(false)
     }
-    /** Called when the app leaves the screen. */
 
-    // ----- library -----
     private fun idsOf(id: String): List<String> {
         val all = movies.value
         val m = all.firstOrNull { it.id == id } ?: return listOf(id)
@@ -156,7 +146,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { sl.db.movies().addWatched(id, ms) }
     }
 
-    /** Instant play: fetch the first few MB while the detail page is open (Wi-Fi only, never with Data saver). */
     fun preload(f: Movie) {
         viewModelScope.launch {
             if (prefs.value.bandwidthSaver || NetPolicy.metered.value || NetPolicy.streamBlock(prefs.value) != null) return@launch
@@ -171,7 +160,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { sl.db.movies().progress(id, pos, dur, System.currentTimeMillis(), pos > dur * 0.92) }
     }
 
-    /** Auto-play next: the next episode of a series (same quality), or the next unwatched movie in My List. */
     fun nextAfter(id: String): String? {
         val all = movies.value
         val cur = all.firstOrNull { it.id == id } ?: return null
@@ -188,7 +176,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         return list.drop(i + 1).firstOrNull { !it.view.watched }?.playFile?.id
     }
 
-    // ----- downloads (per file) -----
     fun pauseDl(id: String) { viewModelScope.launch { sl.downloads.pause(id) } }
     fun resumeDl(id: String) {
         viewModelScope.launch {
