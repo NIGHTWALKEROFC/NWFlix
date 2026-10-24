@@ -25,28 +25,24 @@ import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
 
-/**
- * Google sign-in, the user count and the maintenance / announcement notice, through Firebase's free REST interface.
- * Everything stays off unless the Firebase project id and key were added to the build.
- */
 object Telemetry {
     data class Remote(
         val maintenanceOn: Boolean = false, val maintenanceTitle: String = "", val maintenanceMessage: String = "",
         val annId: String = "", val annTitle: String = "", val annMessage: String = "",
         val annButtonText: String = "", val annButtonUrl: String = "", val annDismissible: Boolean = true,
-        val annExpiresAt: Long = 0L, val annMinVersion: Int = 0, val annMaxVersion: Int = 0, val annCountry: String = ""
+        val annExpiresAt: Long = 0L, val annMinVersion: Int = 0, val annMaxVersion: Int = 0, val annCountry: String = "",
+        val updCode: Int = 0, val updName: String = "", val updNotes: String = "", val updForce: Boolean = false,
+        val updArm64: String = "", val updArm32: String = "", val updX86: String = ""
     )
 
     private class HttpErr(val code: Int, msg: String) : IOException(msg)
 
     val remote = MutableStateFlow(Remote())
-    /** The Google account email when signed in, otherwise empty. */
     val signedInEmail = MutableStateFlow("")
 
     private val pid get() = BuildConfig.FB_PROJECT_ID
     private val key get() = BuildConfig.FB_API_KEY
-    private val configured get() = pid.isNotBlank() && key.isNotBlank()
-    /** True when this build can offer Google sign-in. */
+    val configured get() = pid.isNotBlank() && key.isNotBlank()
     val googleReady get() = configured && BuildConfig.GOOGLE_WEB_CLIENT_ID.isNotBlank()
 
     private var sp: SharedPreferences? = null
@@ -70,13 +66,13 @@ object Telemetry {
         }
     }
 
-    /** Called when the app comes back to the screen. */
     fun poke(scope: CoroutineScope) {
         if (configured && started && System.currentTimeMillis() - lastRun > 2 * 60_000L) scope.launch(Dispatchers.IO) { runOnce() }
     }
 
-    /** "Try again" on the maintenance screen. */
     suspend fun refresh() = withContext(Dispatchers.IO) { try { fetchConfig() } catch (_: Exception) { } }
+
+    suspend fun fetchNow(): Boolean = withContext(Dispatchers.IO) { try { fetchConfig(); true } catch (_: Exception) { false } }
 
     private fun foreground() = ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
 
@@ -88,9 +84,7 @@ object Telemetry {
         }
     }
 
-    // ------------------------------------------------------------ Google account
 
-    /** Exchanges the Google ID token for a Firebase session. Returns the account's email. */
     suspend fun signInWithGoogle(googleIdToken: String): String = withContext(Dispatchers.IO) {
         val body = JSONObject()
             .put("postBody", "id_token=${java.net.URLEncoder.encode(googleIdToken, "UTF-8")}&providerId=google.com")
@@ -100,7 +94,6 @@ object Telemetry {
         val r = try {
             http("POST", "https://identitytoolkit.googleapis.com/v1/accounts:signInWithIdp?key=$key", body)
         } catch (e: HttpErr) {
-            // 4xx means Firebase did not accept the Google token: the Web client ID or the SHA-1 does not match this build
             if (e.code in 400..403) throw GoogleAuth.Failed("Google sign-in is not set up correctly for this version of NWFlix (code ${e.code}). Please contact the developer.")
             throw e
         }
@@ -118,7 +111,6 @@ object Telemetry {
         signedInEmail.value = ""
     }
 
-    // ------------------------------------------------------------ notice
 
     private fun fetchConfig() {
         val r = try {
@@ -131,18 +123,19 @@ object Telemetry {
         fun str(n: String) = f.optJSONObject(n)?.optString("stringValue").orEmpty()
         fun bool(n: String, d: Boolean = false) = f.optJSONObject(n)?.let { if (it.has("booleanValue")) it.optBoolean("booleanValue") else d } ?: d
         fun int(n: String) = f.optJSONObject(n)?.optString("integerValue")?.toIntOrNull() ?: 0
+        fun link(n: String) = str(n).takeIf { it.startsWith("https://") }.orEmpty()
         fun ts(n: String) = parseTs(f.optJSONObject(n)?.optString("timestampValue"))
         remote.value = Remote(
             maintenanceOn = bool("maintenanceOn"), maintenanceTitle = str("maintenanceTitle"), maintenanceMessage = str("maintenanceMessage"),
             annId = str("annId"), annTitle = str("annTitle"), annMessage = str("annMessage"),
             annButtonText = str("annButtonText"), annButtonUrl = str("annButtonUrl").takeIf { it.startsWith("https://") }.orEmpty(), annDismissible = bool("annDismissible", true),
-            annExpiresAt = ts("annExpiresAt"), annMinVersion = int("annMinVersion"), annMaxVersion = int("annMaxVersion"), annCountry = str("annCountry")
+            annExpiresAt = ts("annExpiresAt"), annMinVersion = int("annMinVersion"), annMaxVersion = int("annMaxVersion"), annCountry = str("annCountry"),
+            updCode = int("updCode"), updName = str("updName"), updNotes = str("updNotes"), updForce = bool("updForce"),
+            updArm64 = link("updArm64"), updArm32 = link("updArm32"), updX86 = link("updX86")
         )
     }
 
-    // ------------------------------------------------------------ the user's record
 
-    /** One small record per signed-in Google account. Nothing is sent when nobody is signed in. */
     private fun heartbeat() {
         val s = sp ?: return
         val (uid, token) = session() ?: return
@@ -175,7 +168,6 @@ object Telemetry {
         if (!joined) s.edit().putBoolean("joined", true).apply()
     }
 
-    /** The signed-in session (id, token), refreshed when it has expired. Null when nobody is signed in. */
     private fun session(): Pair<String, String>? {
         val s = sp ?: return null
         val uid = s.getString("uid", null) ?: return null
@@ -188,7 +180,7 @@ object Telemetry {
             save(r.getString("user_id"), r.getString("id_token"), r.getString("refresh_token"), r.getString("expires_in").toLong())
             r.getString("user_id") to r.getString("id_token")
         } catch (e: HttpErr) {
-            if (e.code == 400 || e.code == 401) signOut()       // the account was removed or the session ended
+            if (e.code == 400 || e.code == 401) signOut()
             null
         }
     }
@@ -198,7 +190,6 @@ object Telemetry {
             ?.putLong("exp", System.currentTimeMillis() + expiresInSec * 1000)?.apply()
     }
 
-    // ------------------------------------------------------------ helpers
 
     private fun java.io.InputStream.readUpTo(max: Int): ByteArray {
         val out = java.io.ByteArrayOutputStream()
