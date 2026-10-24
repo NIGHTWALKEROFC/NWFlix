@@ -27,7 +27,7 @@ import java.net.URL
 import java.security.MessageDigest
 
 object Updater {
-    data class Info(val versionCode: Int, val versionName: String, val notes: String, val force: Boolean, val url: String)
+    data class Info(val versionCode: Int, val versionName: String, val notes: String, val force: Boolean, val url: String, val sha256: String = "")
 
     sealed interface State {
         data object Idle : State
@@ -81,9 +81,12 @@ object Updater {
 
     private fun infoFrom(r: Telemetry.Remote): Info? {
         if (r.updCode <= 0) return null
-        val links = mapOf("arm64-v8a" to r.updArm64, "armeabi-v7a" to r.updArm32, "armeabi" to r.updArm32, "x86_64" to r.updX86)
-        val url = Build.SUPPORTED_ABIS.asSequence().mapNotNull { links[it] }.firstOrNull { it.startsWith("https://") } ?: return null
-        return Info(r.updCode, r.updName.ifBlank { r.updCode.toString() }, r.updNotes, r.updForce, url)
+        val links = mapOf(
+            "arm64-v8a" to (r.updArm64 to r.updSha64), "armeabi-v7a" to (r.updArm32 to r.updSha32),
+            "armeabi" to (r.updArm32 to r.updSha32), "x86_64" to (r.updX86 to r.updShaX86)
+        )
+        val pick = Build.SUPPORTED_ABIS.asSequence().mapNotNull { links[it] }.firstOrNull { it.first.startsWith("https://") } ?: return null
+        return Info(r.updCode, r.updName.ifBlank { r.updCode.toString() }, r.updNotes, r.updForce, pick.first, pick.second)
     }
 
     private fun evaluate(r: Telemetry.Remote, manual: Boolean) {
@@ -181,6 +184,7 @@ object Updater {
         val part = File(dir, "$FILE_NAME.part")
         val out = File(dir, FILE_NAME)
         val c = (URL(info.url).openConnection() as HttpURLConnection).apply { connectTimeout = 15_000; readTimeout = 30_000; instanceFollowRedirects = true }
+        val md = MessageDigest.getInstance("SHA-256")
         try {
             if (c.responseCode != 200) throw IllegalStateException("Download failed (HTTP ${c.responseCode}). Please check the update link.")
             if (c.url.protocol != "https") throw SecurityException("The update link is not secure. Update cancelled.")
@@ -194,6 +198,7 @@ object Updater {
                     val n = i.read(buf)
                     if (n < 0) break
                     o.write(buf, 0, n)
+                    md.update(buf, 0, n)
                     done += n
                     if (done > MAX_APK) throw SecurityException("The update file is too large. Update cancelled.")
                     val pct = if (total > 0) (done * 100 / total).toInt() else -1
@@ -201,6 +206,9 @@ object Updater {
                 }
                 if (total > 0 && done != total) throw IllegalStateException("The download was cut short. Please try again.")
             } }
+            if (info.sha256.isNotEmpty() && md.digest().joinToString("") { "%02x".format(it) } != info.sha256) {
+                throw SecurityException("The downloaded file does not match the checksum set by the developer. Update cancelled.")
+            }
             if (!part.renameTo(out)) throw IllegalStateException("Couldn't save the update file.")
         } catch (e: Exception) {
             part.delete(); out.delete(); throw e
@@ -238,8 +246,23 @@ object Updater {
         if (s.useSystemInstaller) installWithSystem(ctx, s.info, s.file) else ServiceLocator.scope.launch(Dispatchers.IO) { installSession(ctx.applicationContext, s.info, s.file) }
     }
 
+    class News(val name: String, val notes: String)
+
+    fun pendingNews(): News? {
+        val p = prefs()
+        val code = p.getInt("news_code", 0)
+        val notes = p.getString("news_notes", "").orEmpty()
+        if (code <= 0 || notes.isBlank() || BuildConfig.VERSION_CODE < code) return null
+        return News(p.getString("news_name", "").orEmpty().ifBlank { BuildConfig.VERSION_NAME }, notes)
+    }
+
+    fun newsSeen() {
+        prefs().edit().remove("news_code").remove("news_name").remove("news_notes").apply()
+    }
+
     private fun installSession(ctx: Context, info: Info, file: File) {
         pending = info to file
+        if (info.notes.isNotBlank()) prefs().edit().putInt("news_code", info.versionCode).putString("news_name", info.versionName).putString("news_notes", info.notes).apply()
         clearNotice(ctx)
         set(State.Installing(info))
         try {
