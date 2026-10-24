@@ -1,109 +1,146 @@
 package app.nwmovie.ui.screens
 
-import app.nwmovie.ui.theme.NWButton
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import app.nwmovie.data.Updater
-import app.nwmovie.util.fmtSize
+import app.nwmovie.ui.BrandMark
+import app.nwmovie.ui.theme.NWButton
 import kotlinx.coroutines.launch
+
+private const val PERMISSION_TEXT = "Android needs your permission once so NWFlix can install its updates. Tap Allow, switch on “Allow from this source”, then come back. The download starts by itself."
 
 @Composable
 fun UpdateHost() {
     val st by Updater.state.collectAsState()
+    val hidden by Updater.hidden.collectAsState()
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
+    val info = Updater.infoOf(st)
 
-    val required = when (val s = st) {
-        is Updater.State.Available -> s.info.mandatory
-        is Updater.State.NeedPermission -> s.info.mandatory
-        is Updater.State.Downloading -> s.info.mandatory
-        is Updater.State.Installing -> s.info.mandatory
-        is Updater.State.Failed -> s.blocking
-        else -> false
-    }
-
-    // A required update covers the whole app until it is installed.
-    if (required) {
+    if (Updater.isBlocking(st) && info != null) {
         BackHandler(true) { }
         Box(
-            Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
-                .clickable(enabled = false) { },
+            Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).clickable(enabled = false) { }
+                .statusBarsPadding().navigationBarsPadding(),
             contentAlignment = Alignment.Center
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(32.dp)) {
-                Text("Update required", style = MaterialTheme.typography.headlineSmall)
+            Column(
+                Modifier.verticalScroll(rememberScrollState()).padding(32.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                BrandMark(64)
+                Spacer(Modifier.height(20.dp))
+                Text("Update required", style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center)
+                Spacer(Modifier.height(8.dp))
                 Text(
-                    "Please install the latest version to keep using NWFlix.",
-                    Modifier.padding(top = 8.dp), color = MaterialTheme.colorScheme.onSurfaceVariant
+                    "Version ${info.versionName} needs to be installed to keep using NWFlix.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center
                 )
+                if (info.notes.isNotBlank()) {
+                    Spacer(Modifier.height(12.dp))
+                    Text(info.notes, textAlign = TextAlign.Center)
+                }
+                Spacer(Modifier.height(24.dp))
+                when (val s = st) {
+                    is Updater.State.Available -> NWButton(onClick = { Updater.begin(ctx, s.info) }, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text("Update now") }
+                    is Updater.State.NeedPermission -> {
+                        Text(PERMISSION_TEXT, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+                        Spacer(Modifier.height(16.dp))
+                        NWButton(onClick = { Updater.openInstallPermissionScreen(ctx) }, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text("Allow") }
+                    }
+                    is Updater.State.Downloading -> {
+                        if (s.percent >= 0) LinearProgressIndicator(progress = { s.percent / 100f }, modifier = Modifier.fillMaxWidth())
+                        else LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        Text(if (s.percent >= 0) "Downloading… ${s.percent}%" else "Downloading…", Modifier.padding(top = 8.dp))
+                        Text("You can leave the app. The download continues.", Modifier.padding(top = 4.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    is Updater.State.Installing -> {
+                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        Text("Installing… If Android asks, tap Install.", Modifier.padding(top = 8.dp), textAlign = TextAlign.Center)
+                    }
+                    is Updater.State.Ready -> {
+                        if (s.note.isNotBlank()) Text(s.note, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+                        Spacer(Modifier.height(16.dp))
+                        NWButton(onClick = { Updater.install(ctx, s) }, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text("Install now") }
+                    }
+                    is Updater.State.Failed -> {
+                        Text(s.message, color = MaterialTheme.colorScheme.error, textAlign = TextAlign.Center)
+                        Spacer(Modifier.height(16.dp))
+                        NWButton(onClick = { Updater.begin(ctx, info) }, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text("Try again") }
+                    }
+                    else -> Unit
+                }
             }
         }
+        return
     }
 
     when (val s = st) {
         is Updater.State.Available -> AlertDialog(
-            onDismissRequest = { if (!s.info.mandatory) scope.launch { Updater.later() } },
+            onDismissRequest = { scope.launch { Updater.later() } },
             title = { Text("Update available") },
             text = {
                 Column {
-                    Text(
-                        "NWFlix ${s.info.versionName}" + if (s.info.size > 0) "  (${fmtSize(s.info.size)})" else "",
-                        style = MaterialTheme.typography.titleMedium
-                    )
+                    Text("NWFlix ${s.info.versionName}", style = MaterialTheme.typography.titleMedium)
                     if (s.info.notes.isNotBlank()) Text(s.info.notes, Modifier.padding(top = 8.dp))
-                    if (s.info.mandatory) Text(
-                        "This update is required to keep using NWFlix.",
-                        Modifier.padding(top = 8.dp), color = MaterialTheme.colorScheme.error
-                    )
                 }
             },
-            confirmButton = { NWButton(onClick = { scope.launch { Updater.downloadAndInstall(ctx, s.info) } }) { Text("Download & install") } },
-            dismissButton = { if (!s.info.mandatory) TextButton(onClick = { scope.launch { Updater.later() } }) { Text("Not now") } }
+            confirmButton = { NWButton(onClick = { Updater.begin(ctx, s.info) }) { Text("Update now") } },
+            dismissButton = { TextButton(onClick = { scope.launch { Updater.later() } }) { Text("Not now") } }
         )
         is Updater.State.NeedPermission -> AlertDialog(
             onDismissRequest = { },
             title = { Text("Allow installing updates") },
-            text = { Text("Android needs your permission once so NWFlix can install its updates. Tap Allow, switch on “Allow from this source”, then come back. The update continues by itself.") },
+            text = { Text(PERMISSION_TEXT) },
             confirmButton = { NWButton(onClick = { Updater.openInstallPermissionScreen(ctx) }) { Text("Allow") } },
-            dismissButton = { if (!s.info.mandatory) TextButton(onClick = { scope.launch { Updater.later() } }) { Text("Cancel") } }
+            dismissButton = { TextButton(onClick = { Updater.dismiss() }) { Text("Cancel") } }
         )
-        is Updater.State.Downloading -> AlertDialog(
+        is Updater.State.Downloading -> if (!hidden) AlertDialog(
             onDismissRequest = { },
             title = { Text("Downloading update") },
             text = {
                 Column {
-                    LinearProgressIndicator(progress = { s.percent / 100f }, modifier = Modifier.fillMaxWidth())
-                    Text("${s.percent}%", Modifier.padding(top = 8.dp))
+                    if (s.percent >= 0) LinearProgressIndicator(progress = { s.percent / 100f }, modifier = Modifier.fillMaxWidth())
+                    else LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                    Text(if (s.percent >= 0) "${s.percent}%" else "Please wait…", Modifier.padding(top = 8.dp))
+                    Text("You can leave the app. The download continues and you get a notification when it is ready.", Modifier.padding(top = 8.dp), style = MaterialTheme.typography.bodySmall)
                 }
             },
-            confirmButton = { }
+            confirmButton = { TextButton(onClick = { Updater.hidden.value = true }) { Text("Hide") } }
         )
         is Updater.State.Installing -> AlertDialog(
             onDismissRequest = { },
             title = { Text("Installing…") },
-            text = { Text("NWFlix restarts when the update is installed. If Android asks, tap Update.") },
+            text = { Text("NWFlix restarts when the update is installed. If Android asks, tap Install.") },
             confirmButton = { }
         )
+        is Updater.State.Ready -> AlertDialog(
+            onDismissRequest = { scope.launch { Updater.later() } },
+            title = { Text("Update ready") },
+            text = { Text(s.note.ifBlank { "NWFlix ${s.info.versionName} is downloaded and ready to install." }) },
+            confirmButton = { NWButton(onClick = { Updater.install(ctx, s) }) { Text("Install") } },
+            dismissButton = { TextButton(onClick = { scope.launch { Updater.later() } }) { Text("Later") } }
+        )
         is Updater.State.Failed -> AlertDialog(
-            onDismissRequest = { if (!s.blocking) Updater.state.value = Updater.State.Idle },
-            title = { Text(if (s.blocking) "Update required" else "Update problem") },
+            onDismissRequest = { Updater.dismiss() },
+            title = { Text("Update problem") },
             text = { Text(s.message) },
             confirmButton = {
-                when {
-                    s.info != null -> NWButton(onClick = { scope.launch { Updater.downloadAndInstall(ctx, s.info) } }) { Text("Try again") }
-                    s.blocking -> NWButton(onClick = { scope.launch { Updater.check(ctx, true) } }) { Text("Try again") }
-                    else -> TextButton(onClick = { Updater.state.value = Updater.State.Idle }) { Text("OK") }
-                }
+                if (s.info != null) NWButton(onClick = { Updater.begin(ctx, s.info) }) { Text("Try again") }
+                else TextButton(onClick = { Updater.dismiss() }) { Text("OK") }
             },
-            dismissButton = { if (!s.blocking && s.info != null) TextButton(onClick = { Updater.state.value = Updater.State.Idle }) { Text("Close") } }
+            dismissButton = { if (s.info != null) TextButton(onClick = { Updater.dismiss() }) { Text("Close") } }
         )
         else -> Unit
     }
