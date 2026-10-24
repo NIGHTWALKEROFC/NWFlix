@@ -51,6 +51,7 @@ object Telemetry {
     private var countedOpen = false
     @Volatile private var lastRun = 0L
     private val lock = Mutex()
+    private const val CONFIG_EVERY_MS = 20_000L
 
     fun init(c: Context, scope: CoroutineScope) {
         if (!configured || started) return
@@ -65,10 +66,19 @@ object Telemetry {
                 delay(10 * 60_000L)
             }
         }
+        scope.launch(Dispatchers.IO) {
+            delay(1000)
+            while (true) {
+                if (foreground()) try { fetchConfig() } catch (_: Exception) { }
+                delay(CONFIG_EVERY_MS)
+            }
+        }
     }
 
     fun poke(scope: CoroutineScope) {
-        if (configured && started && System.currentTimeMillis() - lastRun > 2 * 60_000L) scope.launch(Dispatchers.IO) { runOnce() }
+        if (!configured || !started) return
+        scope.launch(Dispatchers.IO) { try { fetchConfig() } catch (_: Exception) { } }
+        if (System.currentTimeMillis() - lastRun > 2 * 60_000L) scope.launch(Dispatchers.IO) { runOnce() }
     }
 
     suspend fun refresh() = withContext(Dispatchers.IO) { try { fetchConfig() } catch (_: Exception) { } }
@@ -80,7 +90,6 @@ object Telemetry {
     private suspend fun runOnce() {
         lock.withLock {
             lastRun = System.currentTimeMillis()
-            try { fetchConfig() } catch (_: Exception) { }
             if (ServiceLocator.prefs.value.shareStats) try { heartbeat() } catch (_: Exception) { }
         }
     }
