@@ -39,25 +39,39 @@ import app.nwmovie.ui.theme.Accents
 import app.nwmovie.util.fmtSize
 import kotlinx.coroutines.launch
 
-// ---------------------------------------------------------------- main list
+
+private class SettingsRow(val icon: ImageVector, val title: String, val sub: String, val page: String)
 
 @Composable
 fun SettingsScreen(vm: MainViewModel, onPage: (String) -> Unit) {
     val user by vm.userName.collectAsState()
-    val rows = listOf(
-        Triple(Icons.Default.Person, "Account & Security", "account"),
-        Triple(Icons.Default.Lock, "Privacy & Notifications", "privacy"),
-        Triple(Icons.Default.Palette, "Appearance", "appearance"),
-        Triple(Icons.Default.PlayCircle, "Player Settings", "player"),
-        Triple(Icons.Default.Wifi, "Network & Download", "network"),
-        Triple(Icons.Default.Storage, "Storage & Cache", "storage"),
-        Triple(Icons.Default.BarChart, "Watch statistics", "stats"),
-        Triple(Icons.Default.SystemUpdate, "App updates", "updates"),
-        Triple(Icons.Default.HelpOutline, "Help & Support", "help"),
-        Triple(Icons.Default.Gavel, "Privacy Policy", "privacy_policy"),
-        Triple(Icons.Default.Description, "Terms & Conditions", "terms"),
-        Triple(Icons.Default.Copyright, "Disclaimer & Copyright", "disclaimer"),
-        Triple(Icons.Default.Info, "About", "about")
+    val email by Telemetry.signedInEmail.collectAsState()
+    val sections = listOf(
+        "Account" to listOf(
+            SettingsRow(Icons.Default.Person, "Account & Security", "Telegram session, scanning, sign out", "account"),
+            SettingsRow(Icons.Default.Lock, "Privacy & Security", "App lock, statistics, your data", "privacy")
+        ),
+        "Preferences" to listOf(
+            SettingsRow(Icons.Default.Palette, "Appearance", "Theme, colours, text size", "appearance"),
+            SettingsRow(Icons.Default.PlayCircle, "Player Settings", "Playback, subtitles, gestures", "player"),
+            SettingsRow(Icons.Default.Wifi, "Network & Download", "Mobile data, data saver, schedule", "network"),
+            SettingsRow(Icons.Default.Storage, "Storage & Cache", "Cache, saved details, downloads", "storage")
+        ),
+        "Activity" to listOf(
+            SettingsRow(Icons.Default.BarChart, "Watch statistics", "Your watch time and favourites", "stats")
+        ),
+        "App" to listOf(
+            SettingsRow(Icons.Default.SystemUpdate, "App updates", "Version ${BuildConfig.VERSION_NAME}", "updates"),
+            SettingsRow(Icons.Default.HelpOutline, "Help & Support", "Guides and common problems", "help")
+        ),
+        "Legal" to listOf(
+            SettingsRow(Icons.Default.Gavel, "Privacy Policy", "How your information is used", "privacy_policy"),
+            SettingsRow(Icons.Default.Description, "Terms & Conditions", "Rules for using NWFlix", "terms"),
+            SettingsRow(Icons.Default.Copyright, "Disclaimer & Copyright", "Content and credits", "disclaimer")
+        ),
+        "About" to listOf(
+            SettingsRow(Icons.Default.Info, "About NWFlix", "Developer, credits and contact", "about")
+        )
     )
     Column(Modifier.fillMaxSize().statusBarsPadding().verticalScroll(rememberScrollState())) {
         Text("Settings", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(16.dp, 8.dp))
@@ -69,20 +83,29 @@ fun SettingsScreen(vm: MainViewModel, onPage: (String) -> Unit) {
             Column {
                 Text(user.ifBlank { "NWFlix user" }, style = MaterialTheme.typography.titleMedium)
                 Text("Connected with Telegram", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (email.isNotBlank()) Text(email, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-        rows.forEach { (icon, title, page) ->
-            Row(Modifier.fillMaxWidth().clickable { onPage(page) }.padding(horizontal = 16.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(icon, null, tint = MaterialTheme.colorScheme.primary)
-                Spacer(Modifier.width(16.dp))
-                Text(title, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        sections.forEach { (heading, rows) ->
+            Group(heading)
+            rows.forEach { r ->
+                Row(Modifier.fillMaxWidth().clickable { onPage(r.page) }.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(38.dp).clip(RoundedCornerShape(10.dp)).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)), contentAlignment = Alignment.Center) {
+                        Icon(r.icon, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+                    }
+                    Spacer(Modifier.width(14.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(r.title, style = MaterialTheme.typography.bodyLarge)
+                        Text(r.sub, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
         }
+        Spacer(Modifier.height(24.dp))
     }
 }
 
-// ---------------------------------------------------------------- building blocks
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -164,7 +187,6 @@ private fun Confirm(title: String, text: String, ok: String, onOk: () -> Unit, o
 private val langs = listOf("" to "Auto / none", "eng" to "English", "hin" to "Hindi", "tam" to "Tamil", "mal" to "Malayalam", "tel" to "Telugu",
     "kan" to "Kannada", "spa" to "Spanish", "fre" to "French", "ger" to "German", "jpn" to "Japanese", "kor" to "Korean", "ara" to "Arabic")
 
-// ---------------------------------------------------------------- pages
 
 @Composable
 fun SettingsPages(vm: MainViewModel, name: String, onBack: () -> Unit, onPage: (String) -> Unit = {}) {
@@ -182,9 +204,9 @@ fun SettingsPages(vm: MainViewModel, name: String, onBack: () -> Unit, onPage: (
             ActionRow("Full rescan", "Slower: checks every chat deeply and retries unmatched movies", Icons.Default.Search) { vm.rescan(true); vm.say("Full scan started") }
             if (Telemetry.googleReady) {
                 val gEmail by Telemetry.signedInEmail.collectAsState()
-                Group("Google account")
-                ActionRow(gEmail.ifBlank { "Not signed in" }, "Signed in with Google", Icons.Default.AccountCircle) {}
-                ActionRow("Use a different Google account", "You will be asked to pick an account", Icons.Default.Logout) { Telemetry.signOut() }
+                Group("Email account")
+                ActionRow(gEmail.ifBlank { "Not signed in" }, "Signed in", Icons.Default.AccountCircle) {}
+                ActionRow("Use a different email", "You will be asked to choose an account", Icons.Default.Logout) { Telemetry.signOut() }
             }
             Group("Danger zone")
             ActionRow("Log out & clear session", "Signs out of Telegram and deletes everything stored by NWFlix", Icons.Default.Logout, danger = true) { logout = true }
@@ -237,6 +259,7 @@ fun SettingsPages(vm: MainViewModel, name: String, onBack: () -> Unit, onPage: (
                         contentAlignment = Alignment.Center) { if (p.accent == i) Icon(Icons.Default.Check, null, tint = Color.White) }
                 }
             }
+            Group("Text")
             SliderRow("Text size", "${(p.fontScale * 100).toInt()}%", p.fontScale, 0.85f..1.3f, 8) { vm.set(K.fontScale, it) }
             Group("Display")
             SwitchRow("Full-screen player", "Hide system bars while watching", p.fullscreen) { vm.set(K.fullscreen, it) }
@@ -252,8 +275,10 @@ fun SettingsPages(vm: MainViewModel, name: String, onBack: () -> Unit, onPage: (
             SwitchRow("Resume playback", "Continue where you stopped", p.resume) { vm.set(K.resume, it) }
             SwitchRow("Auto-play next", "After a movie ends, play the next unwatched title in My List", p.autoNext) { vm.set(K.autoNext, it) }
             SwitchRow("Background playback", "Keep playing when you leave the app (off = the movie pauses)", p.bgPlayback) { vm.set(K.bgPlayback, it) }
-            Group("Compatibility")
-            ChoiceRow("Player engine", p.engine, listOf("auto" to "Automatic (VLC engine only when needed)", "exo" to "Standard player only", "vlc" to "Always VLC engine (all formats)")) { vm.set(K.engine, it) }
+            Group("Video")
+            SwitchRow("Hardware acceleration", "Turn off if a movie shows green/black video (uses software decoding)", p.hwAccel) { vm.set(K.hwAccel, it) }
+            SwitchRow("Automatic quality", "Adapt quality to your network when a stream offers several", p.autoQuality) { vm.set(K.autoQuality, it) }
+            ChoiceRow("Maximum quality", p.maxQuality, listOf(0 to "No limit", 2160 to "2160p", 1080 to "1080p", 720 to "720p", 480 to "480p")) { vm.set(K.maxQuality, it) }
             Group("Audio & subtitles")
             ChoiceRow("Preferred audio language", p.audioLang, langs) { vm.set(K.audioLang, it) }
             ChoiceRow("Preferred subtitle language", p.subLang, langs.map { if (it.first == "") "" to "Off" else it }) { vm.set(K.subLang, it) }
@@ -262,10 +287,6 @@ fun SettingsPages(vm: MainViewModel, name: String, onBack: () -> Unit, onPage: (
             SwitchRow("Subtitle background", "Dark box behind text for easier reading", p.subBg) { vm.set(K.subBg, it) }
             SliderRow("Default subtitle delay", "${p.subDelayMs} ms", p.subDelayMs.toFloat(), -5000f..5000f, 99) { vm.set(K.subDelayMs, (it / 100).toInt() * 100) }
             SliderRow("Default audio delay", "${p.audioDelayMs} ms", p.audioDelayMs.toFloat(), 0f..2000f, 19) { vm.set(K.audioDelayMs, (it / 100).toInt() * 100) }
-            Group("Video")
-            SwitchRow("Hardware acceleration", "Turn off if a movie shows green/black video (uses software decoding)", p.hwAccel) { vm.set(K.hwAccel, it) }
-            SwitchRow("Automatic quality", "Adapt quality to your network when a stream offers several", p.autoQuality) { vm.set(K.autoQuality, it) }
-            ChoiceRow("Maximum quality", p.maxQuality, listOf(0 to "No limit", 2160 to "2160p", 1080 to "1080p", 720 to "720p", 480 to "480p")) { vm.set(K.maxQuality, it) }
             Group("Gestures")
             SwitchRow("Enable gestures", "Swipe and double-tap on the video", p.gestures) { vm.set(K.gestures, it) }
             SwitchRow("Brightness (swipe left side)", null, p.brightnessGesture, p.gestures) { vm.set(K.brightnessGesture, it) }
@@ -274,10 +295,16 @@ fun SettingsPages(vm: MainViewModel, name: String, onBack: () -> Unit, onPage: (
             SwitchRow("Remember brightness", "Start the next movie with the brightness you chose", p.rememberBrightness) { vm.set(K.rememberBrightness, it) }
             SwitchRow("Remember volume", "Start the next movie with the volume you chose (up to 200 %)", p.rememberVolume) { vm.set(K.rememberVolume, it) }
             ChoiceRow("Double-tap seek", p.doubleTapSec, listOf(5, 10, 15, 30).map { it to "$it seconds" }) { vm.set(K.doubleTapSec, it) }
+            Group("Compatibility")
+            ChoiceRow("Player engine", p.engine, listOf("auto" to "Automatic (VLC engine only when needed)", "exo" to "Standard player only", "vlc" to "Always VLC engine (all formats)")) { vm.set(K.engine, it) }
         }
 
         "network" -> Page("Network & Download", onBack) {
             var askSaver by remember { mutableStateOf(false) }
+            Group("Connection")
+            SwitchRow("Allow mobile data", "Off = NWFlix only uses Wi-Fi for everything", p.mobileData) { vm.set(K.mobileData, it) }
+            SwitchRow("Wi-Fi only for streaming", null, p.wifiOnlyStream) { vm.set(K.wifiOnlyStream, it) }
+            SwitchRow("Wi-Fi only for downloads", null, p.wifiOnlyDownload) { vm.set(K.wifiOnlyDownload, it) }
             Group("Data saver")
             SwitchRow("Data saver", "Uses less data but lowers quality: smaller pictures, smaller streaming read-ahead, and the smallest file is played when a movie has several versions.", p.bandwidthSaver) { on ->
                 if (on) askSaver = true else vm.set(K.bandwidthSaver, false)
@@ -285,21 +312,14 @@ fun SettingsPages(vm: MainViewModel, name: String, onBack: () -> Unit, onPage: (
             if (askSaver) Confirm("Turn on Data saver?",
                 "This reduces data usage but lowers quality. Pictures get smaller, the smallest file is chosen when a movie has several versions, and a slow connection may buffer more often.",
                 "Turn on", { vm.set(K.bandwidthSaver, true) }, { askSaver = false })
-            Group("Smart quality")
             SwitchRow("Smart file choice", "When a movie has several files: best quality on Wi-Fi, smallest file on mobile data (without turning on Data saver).", p.smartQuality) { vm.set(K.smartQuality, it) }
             Group("Download schedule")
             SwitchRow("Only while charging", "Downloads wait until the phone is charging", p.dlOnlyCharging) { vm.set(K.dlOnlyCharging, it) }
             SwitchRow("Only at night (11 PM to 7 AM)", "Downloads wait for night time. They continue while the app is open.", p.dlOnlyNight) { vm.set(K.dlOnlyNight, it) }
-            Text("Wi-Fi only for downloads is in the next section. All rules apply together.", style = MaterialTheme.typography.bodySmall,
+            Text("All download rules apply together, including Wi-Fi only for downloads.", style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 16.dp))
-            Group("Mobile data")
-            SwitchRow("Allow mobile data", "Off = NWFlix only uses Wi-Fi for everything", p.mobileData) { vm.set(K.mobileData, it) }
-            SwitchRow("Wi-Fi only for streaming", null, p.wifiOnlyStream) { vm.set(K.wifiOnlyStream, it) }
-            SwitchRow("Wi-Fi only for downloads", null, p.wifiOnlyDownload) { vm.set(K.wifiOnlyDownload, it) }
             Group("Background")
             SwitchRow("Downloads in background", "Off = downloads pause when you leave the app and continue when you return", p.bgDownloads) { vm.set(K.bgDownloads, it) }
-            SwitchRow("Automatic quality", null, p.autoQuality) { vm.set(K.autoQuality, it) }
-            ChoiceRow("Maximum streaming quality", p.maxQuality, listOf(0 to "No limit", 1080 to "1080p", 720 to "720p", 480 to "480p")) { vm.set(K.maxQuality, it) }
         }
 
         "storage" -> Page("Storage & Cache", onBack) {
@@ -364,7 +384,6 @@ private fun CacheRow(title: String, bytes: Long, note: String? = null, button: S
     }
 }
 
-// ---------------------------------------------------------------- statistics
 
 private class WatchStats(val total: Long, val genres: List<Pair<String, Long>>, val top: List<Pair<MovieGroup, Long>>, val movies: Int, val episodes: Int)
 
@@ -421,7 +440,6 @@ private fun ColumnScope.StatsContent(vm: MainViewModel) {
     }
 }
 
-// ---------------------------------------------------------------- free up space
 
 @Composable
 private fun ColumnScope.SpaceContent(vm: MainViewModel) {
@@ -468,11 +486,11 @@ private fun ColumnScope.SpaceContent(vm: MainViewModel) {
         { vm.deleteMany(sel); sel = emptySet() }, { confirm = false })
 }
 
-// ---------------------------------------------------------------- updates
 
 @Composable
 private fun ColumnScope.UpdatesContent(vm: MainViewModel) {
     val st by Updater.state.collectAsState()
+    val ctx = LocalContext.current
     Column(Modifier.padding(16.dp)) {
         Text("Installed version", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(BuildConfig.VERSION_NAME, style = MaterialTheme.typography.titleLarge)
@@ -483,18 +501,33 @@ private fun ColumnScope.UpdatesContent(vm: MainViewModel) {
                 is Updater.State.UpToDate -> "You have the latest version."
                 is Updater.State.NotConfigured -> "Updates are not available in this build."
                 is Updater.State.Available -> "Version ${s.info.versionName} is available."
+                is Updater.State.NeedPermission -> "Allow installing updates to continue."
+                is Updater.State.Downloading -> if (s.percent >= 0) "Downloading version ${s.info.versionName}… ${s.percent}%" else "Downloading version ${s.info.versionName}…"
+                is Updater.State.Installing -> "Installing version ${s.info.versionName}…"
+                is Updater.State.Ready -> "Version ${s.info.versionName} is ready to install."
                 is Updater.State.Failed -> s.message
-                else -> if (Updater.configured) "Tap the button to look for a new version." else "Updates are not available in this build."
+                else -> if (Telemetry.configured) "Tap the button to look for a new version." else "Updates are not available in this build."
             }, style = MaterialTheme.typography.bodyLarge
         )
         Spacer(Modifier.height(12.dp))
-        NWButton(onClick = { vm.checkUpdates(true) }, enabled = Updater.configured, shape = RoundedCornerShape(14.dp)) { Text("Check for updates") }
+        when (val s = st) {
+            is Updater.State.Available -> NWButton(onClick = { Updater.begin(ctx, s.info) }, shape = RoundedCornerShape(14.dp)) { Text("Update now") }
+            is Updater.State.Ready -> NWButton(onClick = { Updater.install(ctx, s) }, shape = RoundedCornerShape(14.dp)) { Text("Install now") }
+            is Updater.State.NeedPermission -> NWButton(onClick = { Updater.openInstallPermissionScreen(ctx) }, shape = RoundedCornerShape(14.dp)) { Text("Allow") }
+            is Updater.State.Downloading -> LinearProgressIndicator(
+                progress = { if (s.percent >= 0) s.percent / 100f else 0f }, modifier = Modifier.fillMaxWidth()
+            )
+            else -> NWButton(
+                onClick = { vm.checkUpdates(true) },
+                enabled = Telemetry.configured && st !is Updater.State.Checking && st !is Updater.State.Installing,
+                shape = RoundedCornerShape(14.dp)
+            ) { Text("Check for updates") }
+        }
         Text("If you skip an update, NWFlix asks again the next day.",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 12.dp))
     }
 }
 
-// ---------------------------------------------------------------- about
 
 private const val CONTACT_TO = "rinshan602@gmail.com"
 
