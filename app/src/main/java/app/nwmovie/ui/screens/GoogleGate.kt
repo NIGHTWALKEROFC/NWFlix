@@ -23,7 +23,6 @@ import app.nwmovie.ui.theme.NWButton
 import app.nwmovie.util.findActivity
 import kotlinx.coroutines.launch
 
-/** Full-screen "Continue with Google" step. Signing in is required to use the app. */
 @Composable
 fun GoogleGate(vm: MainViewModel) {
     val ctx = LocalContext.current
@@ -44,12 +43,10 @@ fun GoogleGate(vm: MainViewModel) {
         ) {
             BrandMark(72)
             Spacer(Modifier.height(20.dp))
-            Text(tr(lang, "Sign in with Google", "Google ഉപയോഗിച്ച് സൈൻ ഇൻ ചെയ്യുക"), style = MaterialTheme.typography.headlineMedium, textAlign = TextAlign.Center)
+            Text(tr(lang, "Sign in with your email", "നിങ്ങളുടെ ഇമെയിൽ ഉപയോഗിച്ച് സൈൻ ഇൻ ചെയ്യുക"), style = MaterialTheme.typography.headlineMedium, textAlign = TextAlign.Center)
             Spacer(Modifier.height(10.dp))
             Text(
-                tr(lang,
-                    "Pick your Google account with one tap. No password. It is used to count real users and to reach you with important notices.",
-                    "ഒറ്റ ടാപ്പിൽ നിങ്ങളുടെ Google അക്കൗണ്ട് തിരഞ്ഞെടുക്കുക. പാസ്‌വേഡ് വേണ്ട. യഥാർത്ഥ ഉപയോക്താക്കളെ എണ്ണാനും പ്രധാന അറിയിപ്പുകൾ നൽകാനും മാത്രമാണ് ഇത് ഉപയോഗിക്കുന്നത്."),
+                tr(lang, "Choose your email account to continue. No password needed.", "തുടരാൻ നിങ്ങളുടെ ഇമെയിൽ അക്കൗണ്ട് തിരഞ്ഞെടുക്കുക. പാസ്‌വേഡ് ആവശ്യമില്ല."),
                 color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center
             )
             Spacer(Modifier.height(28.dp))
@@ -72,11 +69,9 @@ fun GoogleGate(vm: MainViewModel) {
                 enabled = !busy, modifier = Modifier.fillMaxWidth().height(52.dp)
             ) {
                 if (busy) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.background)
-                else { Icon(Icons.Default.AccountCircle, null); Spacer(Modifier.width(8.dp)); Text(tr(lang, "Continue with Google", "Google ഉപയോഗിച്ച് തുടരുക")) }
+                else { Icon(Icons.Default.AccountCircle, null); Spacer(Modifier.width(8.dp)); Text(tr(lang, "Continue with email", "ഇമെയിൽ ഉപയോഗിച്ച് തുടരുക")) }
             }
             error?.let { Spacer(Modifier.height(12.dp)); Text(it, color = MaterialTheme.colorScheme.error, textAlign = TextAlign.Center) }
-            Text(tr(lang, "Signing in is required to use NWFlix.", "NWFlix ഉപയോഗിക്കാൻ സൈൻ ഇൻ ആവശ്യമാണ്."),
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 12.dp))
             Spacer(Modifier.height(16.dp))
             Row(horizontalArrangement = Arrangement.Center) {
                 TextButton(onClick = { legal = "privacy" }) { Text("Privacy Policy") }
