@@ -32,7 +32,8 @@ object Telemetry {
         val annButtonText: String = "", val annButtonUrl: String = "", val annDismissible: Boolean = true,
         val annExpiresAt: Long = 0L, val annMinVersion: Int = 0, val annMaxVersion: Int = 0, val annCountry: String = "",
         val updCode: Int = 0, val updName: String = "", val updNotes: String = "", val updForce: Boolean = false,
-        val updArm64: String = "", val updArm32: String = "", val updX86: String = ""
+        val updArm64: String = "", val updArm32: String = "", val updX86: String = "",
+        val updSha64: String = "", val updSha32: String = "", val updShaX86: String = ""
     )
 
     private class HttpErr(val code: Int, msg: String) : IOException(msg)
@@ -124,6 +125,7 @@ object Telemetry {
         fun bool(n: String, d: Boolean = false) = f.optJSONObject(n)?.let { if (it.has("booleanValue")) it.optBoolean("booleanValue") else d } ?: d
         fun int(n: String) = f.optJSONObject(n)?.optString("integerValue")?.toIntOrNull() ?: 0
         fun link(n: String) = str(n).takeIf { it.startsWith("https://") }.orEmpty()
+        fun hex(n: String) = str(n).trim().lowercase().takeIf { Regex("[0-9a-f]{64}").matches(it) }.orEmpty()
         fun ts(n: String) = parseTs(f.optJSONObject(n)?.optString("timestampValue"))
         remote.value = Remote(
             maintenanceOn = bool("maintenanceOn"), maintenanceTitle = str("maintenanceTitle"), maintenanceMessage = str("maintenanceMessage"),
@@ -131,7 +133,8 @@ object Telemetry {
             annButtonText = str("annButtonText"), annButtonUrl = str("annButtonUrl").takeIf { it.startsWith("https://") }.orEmpty(), annDismissible = bool("annDismissible", true),
             annExpiresAt = ts("annExpiresAt"), annMinVersion = int("annMinVersion"), annMaxVersion = int("annMaxVersion"), annCountry = str("annCountry"),
             updCode = int("updCode"), updName = str("updName"), updNotes = str("updNotes"), updForce = bool("updForce"),
-            updArm64 = link("updArm64"), updArm32 = link("updArm32"), updX86 = link("updX86")
+            updArm64 = link("updArm64"), updArm32 = link("updArm32"), updX86 = link("updX86"),
+            updSha64 = hex("updSha64"), updSha32 = hex("updSha32"), updShaX86 = hex("updShaX86")
         )
     }
 
