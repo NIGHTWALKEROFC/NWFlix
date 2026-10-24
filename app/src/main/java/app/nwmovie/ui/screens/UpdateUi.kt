@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -13,6 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import app.nwmovie.data.Updater
 import app.nwmovie.ui.BrandMark
 import app.nwmovie.ui.theme.NWButton
@@ -27,15 +29,8 @@ fun UpdateHost() {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val info = Updater.infoOf(st)
-    var news by remember { mutableStateOf(Updater.pendingNews()) }
-    news?.let { n ->
-        AlertDialog(
-            onDismissRequest = { Updater.newsSeen(); news = null },
-            title = { Text("What's new in ${n.name}") },
-            text = { Text(n.notes, Modifier.verticalScroll(rememberScrollState())) },
-            confirmButton = { NWButton(onClick = { Updater.newsSeen(); news = null }) { Text("Got it") } }
-        )
-    }
+    var welcome by remember { mutableStateOf(Updater.pendingWelcome()) }
+    welcome?.let { w -> WelcomeDialog(w) { Updater.welcomeSeen(); welcome = null } }
 
     if (Updater.isBlocking(st) && info != null) {
         BackHandler(true) { }
@@ -152,5 +147,41 @@ fun UpdateHost() {
             dismissButton = { if (s.info != null) TextButton(onClick = { Updater.dismiss() }) { Text("Close") } }
         )
         else -> Unit
+    }
+}
+
+
+@Composable
+private fun WelcomeDialog(w: Updater.Welcome, onClose: () -> Unit) {
+    Dialog(onDismissRequest = onClose) {
+        Surface(shape = RoundedCornerShape(28.dp), color = MaterialTheme.colorScheme.surface, tonalElevation = 6.dp) {
+            Column(
+                Modifier.verticalScroll(rememberScrollState()).padding(28.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                BrandMark(72)
+                Spacer(Modifier.height(20.dp))
+                Text(if (w.firstTime) "Welcome to NWFlix" else "Welcome back", style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center)
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    if (w.firstTime) "Your movies, your way" else "You are now on version ${w.version}",
+                    color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.titleSmall, textAlign = TextAlign.Center
+                )
+                Spacer(Modifier.height(14.dp))
+                Text(
+                    if (w.firstTime) "Stream your Telegram movies in one beautiful place. Browse your library, play instantly, download to watch offline, and pick up right where you stopped. Grab some popcorn and enjoy the show."
+                    else "Thanks for staying with us. NWFlix has been updated to make your movie nights smoother. We hope you love it.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center
+                )
+                if (w.notes.isNotBlank()) {
+                    Spacer(Modifier.height(16.dp))
+                    Text("What's new", style = MaterialTheme.typography.titleSmall)
+                    Spacer(Modifier.height(4.dp))
+                    Text(w.notes, textAlign = TextAlign.Center)
+                }
+                Spacer(Modifier.height(24.dp))
+                NWButton(onClick = onClose, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text(if (w.firstTime) "Let's start" else "Continue") }
+            }
+        }
     }
 }
