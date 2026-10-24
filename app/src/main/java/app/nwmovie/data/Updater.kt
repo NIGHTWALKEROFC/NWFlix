@@ -110,7 +110,8 @@ object Updater {
             run(app, info)
             return
         }
-        val snoozed = !manual && !info.force && System.currentTimeMillis() < ServiceLocator.prefs.value.updateSnoozeUntil
+        val snoozed = !manual && !info.force && System.currentTimeMillis() < ServiceLocator.prefs.value.updateSnoozeUntil &&
+            info.versionCode <= prefs().getInt("snoozed_code", 0)
         set(if (snoozed) State.Idle else State.Available(info))
     }
 
@@ -129,6 +130,7 @@ object Updater {
     }
 
     suspend fun later() {
+        infoOf(state.value)?.let { prefs().edit().putInt("snoozed_code", it.versionCode).apply() }
         ServiceLocator.settings.set(K.updateSnoozeUntil, System.currentTimeMillis() + DAY)
         prefs().edit().putBoolean("waiting", false).apply()
         set(State.Idle)
