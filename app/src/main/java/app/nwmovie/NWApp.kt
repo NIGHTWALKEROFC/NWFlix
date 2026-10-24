@@ -17,8 +17,8 @@ class NWApp : Application(), ImageLoaderFactory {
         ServiceLocator.init(this)
         DownloadService.ensureChannel(this)
         ServiceLocator.tg.start()
+        app.nwmovie.data.Updater.start()
         ServiceLocator.scope.launch {
-            // Housekeeping (size limits + 3-day inactivity cleanup) once Telegram is connected.
             ServiceLocator.tg.auth.filterIsInstance<Tg.Auth.Ready>().first()
             runCatching { CacheManager.autoClean(this@NWApp) }
         }
