@@ -258,6 +258,26 @@ object Updater {
         return News(p.getString("news_name", "").orEmpty().ifBlank { BuildConfig.VERSION_NAME }, notes)
     }
 
+    class Welcome(val firstTime: Boolean, val version: String, val notes: String)
+
+    fun pendingWelcome(): Welcome? {
+        val seen = prefs().getInt("seen_code", 0)
+        val cur = BuildConfig.VERSION_CODE
+        if (seen in 1 until cur || seen == 0) {
+            val first = seen == 0 && try {
+                val pi = ServiceLocator.app.packageManager.getPackageInfo(ServiceLocator.app.packageName, 0)
+                Math.abs(pi.lastUpdateTime - pi.firstInstallTime) < 5000
+            } catch (_: Exception) { false }
+            return Welcome(first, BuildConfig.VERSION_NAME, if (first) "" else pendingNews()?.notes.orEmpty())
+        }
+        return null
+    }
+
+    fun welcomeSeen() {
+        prefs().edit().putInt("seen_code", BuildConfig.VERSION_CODE).apply()
+        newsSeen()
+    }
+
     fun newsSeen() {
         prefs().edit().remove("news_code").remove("news_name").remove("news_notes").apply()
     }
