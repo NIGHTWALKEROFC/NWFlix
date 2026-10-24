@@ -42,8 +42,6 @@ android {
         buildConfigField("String", "FB_PROJECT_ID", "\"${secret("FB_PROJECT_ID")}\"")
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"${secret("GOOGLE_WEB_CLIENT_ID")}\"")
         buildConfigField("String", "FB_API_KEY", "\"${secret("FB_API_KEY")}\"")
-        buildConfigField("String", "UPDATE_URL", "\"${secret("UPDATE_URL")}\"")
-        buildConfigField("String", "UPDATE_PUBKEY", "\"${secret("UPDATE_PUBKEY")}\"")
         buildConfigField("String", "CERT_SHA256", "\"${secret("APP_CERT_SHA256")}\"")
     }
 
