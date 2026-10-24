@@ -14,7 +14,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 
-/** Privacy policy, terms and disclaimer. The same text is on the website. */
 private class LegalDoc(val title: String, val sections: List<Pair<String, List<String>>>)
 
 private const val LEGAL_UPDATED = "October 2026"
@@ -35,7 +34,7 @@ private val LEGAL: Map<String, LegalDoc> = mapOf(
         "Information sent to other services" to listOf(
             "Telegram: the app connects to Telegram to log you in, list your chats and stream the files you choose. Telegram's own privacy policy applies to that.",
             "TMDB (The Movie Database): to show posters and details, the app sends the cleaned-up movie title and year taken from a file name to TMDB. No account details are sent. TMDB's privacy policy applies.",
-            "GitHub: update checks and downloads are served from GitHub. GitHub can see your IP address when you check for or download an update.",
+            "App updates: the update details come from Google Firebase, and the update file is downloaded from the link the developer sets (for example GitHub). The host of that link can see your IP address when you download an update.",
         ),
         "Google sign-in and usage statistics" to listOf(
             "To use NWFlix you sign in with your Google account (one tap, no password). This is used to count real users and to be able to contact users with important notices.",
@@ -45,7 +44,7 @@ private val LEGAL: Map<String, LegalDoc> = mapOf(
             "You can switch the statistics off at any time in Settings → Privacy & Security → Share anonymous usage statistics, and sign out of Google in Settings → Account & Security. Signing out stops the records.",
         ),
         "The download website" to listOf(
-            "The website only serves the app file and these documents. It does not use cookies or analytics. The download page loads release information from GitHub. If you type your phone's name to find the right file, that name is sent to Wikipedia to look it up. GitHub and Wikipedia can see your IP address when this happens.",
+            "The website only serves the app file and these documents. It does not use cookies or analytics. The download page loads the current version and file links from Google Firebase. If you type your phone's name to find the right file, that name is sent to Wikipedia to look it up. Google and Wikipedia can see your IP address when this happens.",
         ),
         "Messages from the developer" to listOf(
             "The app checks a small public notice from time to time. It can show a message (for example about an update) or tell you the app is under maintenance. This notice is the same for everyone and does not use your personal information.",
@@ -58,7 +57,7 @@ private val LEGAL: Map<String, LegalDoc> = mapOf(
             "NWFlix is not meant for children under 13 (or under the age required by Telegram in your country). Do not use the app if you are below that age.",
         ),
         "Security" to listOf(
-            "Sensitive keys are stored in the Android Keystore. Updates are checked with a digital signature before they are installed. No system that connects to the internet can be made 100 percent secure.",
+            "Sensitive keys are stored in the Android Keystore. An update is only installed if it is signed with the developer's key, and Android refuses any update signed by someone else. No system that connects to the internet can be made 100 percent secure.",
         ),
         "Changes to this policy" to listOf(
             "This policy may change when the app changes. The date at the top shows when it was last updated (October 2026). Continuing to use the app after a change means you accept the new policy.",
@@ -129,7 +128,6 @@ private val LEGAL: Map<String, LegalDoc> = mapOf(
 
 fun legalTitle(kind: String): String = LEGAL[kind]?.title ?: ""
 
-/** The text of one document, for the settings pages. */
 @Composable
 fun LegalBody(kind: String) {
     val doc = LEGAL[kind] ?: return
@@ -144,7 +142,6 @@ fun LegalBody(kind: String) {
     }
 }
 
-/** The same text in a pop-up, for the login screen. */
 @Composable
 fun LegalDialog(kind: String, onClose: () -> Unit) {
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
